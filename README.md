@@ -36,21 +36,7 @@
 
 | 版本    | 说明                                           |
 | ----- | -------------------------------------------- |
-| 1.0.0 | 当前发布版本；详见 [docs/mvp.md](docs/mvp.md) 产品与技术规格 |
-
-
-## 🧩 服务组成
-
-
-| 组件                       | 职责                                                                | 开发指引                                                     |
-| ------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------- |
-| **CLI**（`ddo_pulse_cli`） | 初始化、`run-once`、`api` / `dev`、config / source / profile / digest 等 | [services/backend/AGENTS.md](services/backend/AGENTS.md) |
-| **core**                 | 抓取、分析、Digest、流水线领域逻辑                                              | 同上                                                       |
-| **api**（`ddo_pulse_api`） | FastAPI、路由、调度挂载                                                   | 同上                                                       |
-| **db**                   | SQLite 访问与路径约定                                                    | 同上                                                       |
-| **mcp**（可选）              | MCP 服务入口                                                          | 同上                                                       |
-| **web**                  | Vue 3 + Vite 前端                                                   | [services/web/AGENTS.md](services/web/AGENTS.md)         |
-
+| 1.0.0 | 当前发布版本； |
 
 ## 🛠 技术栈
 
