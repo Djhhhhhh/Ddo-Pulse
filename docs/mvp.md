@@ -1,6 +1,6 @@
 # Ddo-Pulse MVP 产品与技术规格
 
-> 版本：MVP v0.5  
+> 版本：1.0（产品规格与仓库版本号对齐）  
 > 更新：2026-05-16  
 > 状态：规格定稿，待开发
 
@@ -970,5 +970,6 @@ ddo-pulse stop     # 停止服务
 | 2026-05-16 | MVP v0.3：OpenRouter、Vue、start/stop/health                                |
 | 2026-05-16 | MVP v0.4：`browser_session`、`~/.ddo_pulse`（Path.home） |
 | 2026-05-16 | MVP v0.5：仓库两端 `services/web` + `services/backend`；file-index 仅维护两端 AGENTS.md |
+| 2026-05-16 | **1.0**：产品与 pyproject / 前端 package 版本统一为 1.0.0 |
 
 

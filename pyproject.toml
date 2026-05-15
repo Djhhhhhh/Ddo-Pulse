@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddo-pulse"
-version = "0.1.0"
+version = "1.0.0"
 description = "Lightweight blog aggregation with LLM curation"
 readme = "docs/mvp.md"
 requires-python = ">=3.11"
@@ -14,15 +14,40 @@ dependencies = [
     "feedparser>=6.0.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0.0",
+    "openai>=1.0.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "apscheduler>=3.10.0",
 ]
 
 [project.scripts]
 ddo-pulse = "ddo_pulse_cli.main:app"
+ddo-pulse-mcp = "ddo_pulse_mcp.server:main"
+ddo-pulse-api = "ddo_pulse_api.main:run"
 
 [tool.setuptools.packages.find]
 where = [
     "services/backend/cli",
     "services/backend/core",
     "services/backend/db",
+    "services/backend/mcp",
+    "services/backend/api",
 ]
 include = ["ddo_pulse_*"]
+
+[project.optional-dependencies]
+browser = ["playwright>=1.40.0"]
+mcp = ["mcp>=1.2.0"]
+dev = ["pytest>=8.0.0"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "services/backend/cli",
+    "services/backend/core",
+    "services/backend/db",
+    "services/backend/mcp",
+    "services/backend/api",
+]
+testpaths = ["tests"]

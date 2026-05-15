@@ -69,4 +69,4 @@ api        →  core, db
 
 ## 🕒 最后更新时间
 
-2026-05-16 — M1 已实现：db、CLI、RSS/json_feed、run-once
+2026-05-16 — Backend MVP 完成（M1–M5a）；Web M5b 见 services/web

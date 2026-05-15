@@ -17,6 +17,7 @@ venv/
 .vscode/
 .DS_Store
 Thumbs.db
+.agent
 
 # Env secrets
 .env
@@ -25,3 +26,4 @@ Thumbs.db
 # Node (web)
 node_modules/
 services/web/frontend/dist/
+services/web/frontend/.ddo-pulse.env.json

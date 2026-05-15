@@ -6,6 +6,7 @@ from pathlib import Path
 
 DATA_DIR_NAME = ".ddo_pulse"
 CONFIG_FILENAME = "config.yaml"
+WEB_CONFIG_FILENAME = "web.yaml"
 DB_FILENAME = "ddo_pulse.db"
 
 
@@ -19,6 +20,10 @@ def get_config_path() -> Path:
 
 def get_db_path() -> Path:
     return get_data_dir() / DB_FILENAME
+
+
+def get_web_config_path() -> Path:
+    return get_data_dir() / WEB_CONFIG_FILENAME
 
 
 def ensure_data_dir() -> Path:

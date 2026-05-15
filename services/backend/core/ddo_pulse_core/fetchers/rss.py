@@ -12,8 +12,11 @@ import httpx
 from ddo_pulse_core.fetchers.base import BaseFetcher
 from ddo_pulse_core.models import RawItem, normalize_url
 
-USER_AGENT = "Ddo-Pulse/0.1 (+https://github.com/ddo-pulse)"
+USER_AGENT = "Ddo-Pulse/1.0 (+https://github.com/ddo-pulse)"
 TIMEOUT = 30.0
+
+
+from ddo_pulse_db.datetime_util import APP_TZ
 
 
 def _entry_published(entry: feedparser.FeedParserDict) -> str | None:
@@ -22,14 +25,19 @@ def _entry_published(entry: feedparser.FeedParserDict) -> str | None:
         if parsed:
             try:
                 dt = datetime(*parsed[:6], tzinfo=timezone.utc)
-                return dt.isoformat()
+                return dt.astimezone(APP_TZ).replace(microsecond=0).isoformat()
             except (TypeError, ValueError):
                 pass
     for key in ("published", "updated"):
         raw = entry.get(key)
         if raw:
             try:
-                return parsedate_to_datetime(raw).astimezone(timezone.utc).isoformat()
+                return (
+                    parsedate_to_datetime(raw)
+                    .astimezone(APP_TZ)
+                    .replace(microsecond=0)
+                    .isoformat()
+                )
             except (TypeError, ValueError, OverflowError):
                 return str(raw)
     return None

@@ -1,15 +1,4 @@
--- Ddo-Pulse schema (see docs/mvp.md section 11)
-
-CREATE TABLE IF NOT EXISTS sources (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    type TEXT NOT NULL,
-    url TEXT NOT NULL,
-    config_json TEXT DEFAULT '{}',
-    enabled INTEGER NOT NULL DEFAULT 1,
-    fetch_cron TEXT,
-    created_at TEXT NOT NULL
-);
+-- Ddo-Pulse schema (pipeline jobs + per-job sources/digests)
 
 CREATE TABLE IF NOT EXISTS llm_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,9 +12,40 @@ CREATE TABLE IF NOT EXISTS llm_profiles (
     temperature REAL NOT NULL DEFAULT 0.3,
     max_tokens INTEGER NOT NULL DEFAULT 1024,
     prompt_template TEXT,
+    system_prompt TEXT,
     score_threshold INTEGER NOT NULL DEFAULT 7,
     category_hints TEXT DEFAULT '[]',
     is_default INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS pipeline_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    schedule_cron TEXT NOT NULL DEFAULT '0 8 * * *',
+    analyze_limit INTEGER NOT NULL DEFAULT 50,
+    digest_top_n INTEGER NOT NULL DEFAULT 8,
+    push_digest INTEGER NOT NULL DEFAULT 0,
+    score_threshold INTEGER NOT NULL DEFAULT 7,
+    interest_keywords_json TEXT NOT NULL DEFAULT '[]',
+    keyword_prefilter INTEGER NOT NULL DEFAULT 0,
+    prompt_template TEXT,
+    scoring_rubric TEXT,
+    system_prompt TEXT,
+    llm_profile_id INTEGER REFERENCES llm_profiles(id) ON DELETE SET NULL,
+    feishu_webhook_url TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    url TEXT NOT NULL,
+    config_json TEXT DEFAULT '{}',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS raw_items (
@@ -52,10 +72,12 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
 
 CREATE TABLE IF NOT EXISTS digests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL UNIQUE,
+    job_id INTEGER NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
     item_ids_json TEXT NOT NULL DEFAULT '[]',
     markdown_body TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    UNIQUE(date, job_id)
 );
 
 CREATE TABLE IF NOT EXISTS push_logs (
@@ -77,8 +99,15 @@ CREATE TABLE IF NOT EXISTS job_runs (
     started_at TEXT NOT NULL,
     finished_at TEXT,
     status TEXT NOT NULL,
-    error TEXT
+    error TEXT,
+    pipeline_job_id INTEGER REFERENCES pipeline_jobs(id) ON DELETE SET NULL,
+    trigger TEXT NOT NULL DEFAULT 'manual',
+    result_json TEXT,
+    digest_id INTEGER REFERENCES digests(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_raw_items_source_id ON raw_items(source_id);
 CREATE INDEX IF NOT EXISTS idx_sources_enabled ON sources(enabled);
+CREATE INDEX IF NOT EXISTS idx_sources_job_id ON sources(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_runs_pipeline_job ON job_runs(pipeline_job_id);
+CREATE INDEX IF NOT EXISTS idx_digests_job_date ON digests(job_id, date);

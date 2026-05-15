@@ -64,6 +64,11 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def get_default_profile_template() -> dict[str, Any]:
+    profiles = DEFAULT_CONFIG.get("llm", {}).get("profiles") or []
+    return dict(profiles[0]) if profiles else {}
+
+
 def export_config(path: Path | None = None, sources: list[dict[str, Any]] | None = None) -> Path:
     target = path or get_config_path()
     data = load_config(target) if target.exists() else dict(DEFAULT_CONFIG)
