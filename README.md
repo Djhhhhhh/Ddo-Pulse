@@ -1,7 +1,7 @@
 # Ddo-Pulse
 
-[Python](https://www.python.org/)
-[Vue](https://vuejs.org/)
+[![Vue](https://img.shields.io/badge/Vue-0A0A0A?style=flat-square&logo=vue.js&logoColor=FFD700)](https://vuejs.org/)
+[![Python](https://img.shields.io/badge/Python-0A0A0A?style=flat-square&logo=python&logoColor=FFD700)](https://www.python.org/)
 
 > **Ddo-Pulse** 是一款轻量化的**本机信息聚合**工具：按配置定时抓取博客与订阅源，经 **OpenRouter** 等大模型筛选、分类与中文摘要后，支持**飞书推送日报**，并在**本地 Web** 浏览 Dashboard、文章与配置。
 
