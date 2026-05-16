@@ -27,6 +27,7 @@ export interface Dashboard {
   enabled_sources_count: number;
   raw_items_count: number;
   analyzed_count: number;
+  read_count: number;
   quality_count: number;
   pending_analyze: number;
   digest_job_id: number | null;
@@ -74,6 +75,8 @@ export interface Article {
   analyzed_at: string;
   source_id: number;
   published_at: string | null;
+  is_pushed: boolean;
+  is_read: boolean;
 }
 
 export interface ArticleList {
@@ -152,6 +155,10 @@ export const api = {
   articleCategories: (days = 365) =>
     request<{ categories: string[] }>(`/articles/categories?days=${days}`),
   article: (id: number) => request<Article>(`/articles/${id}`),
+  markArticleRead: (id: number) =>
+    request<void>(`/articles/${id}/read`, { method: "POST" }),
+  markArticleUnread: (id: number) =>
+    request<void>(`/articles/${id}/read`, { method: "DELETE" }),
   sources: (jobId?: number) => {
     const q = jobId != null ? `?job_id=${jobId}` : "";
     return request<Source[]>(`/sources${q}`);
@@ -197,12 +204,19 @@ export const api = {
     request<void>(`/pipeline-jobs/${id}`, { method: "DELETE" }),
   runPipelineJob: (
     id: number,
-    params: { skip_analyze?: boolean; skip_digest?: boolean; skip_push?: boolean; analyze_limit?: number }
+    params: {
+      skip_analyze?: boolean;
+      skip_digest?: boolean;
+      skip_push?: boolean;
+      force_push?: boolean;
+      analyze_limit?: number;
+    }
   ) => {
     const p = new URLSearchParams();
     if (params.skip_analyze) p.set("skip_analyze", "true");
     if (params.skip_digest) p.set("skip_digest", "true");
     if (params.skip_push != null) p.set("skip_push", params.skip_push ? "true" : "false");
+    if (params.force_push != null) p.set("force_push", params.force_push ? "true" : "false");
     if (params.analyze_limit != null) p.set("analyze_limit", String(params.analyze_limit));
     return request<{ ok: boolean; stats: Record<string, unknown> }>(
       `/pipeline-jobs/${id}/run?${p}`,

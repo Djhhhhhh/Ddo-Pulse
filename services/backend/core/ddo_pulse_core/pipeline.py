@@ -182,6 +182,7 @@ def run_pipeline_job(
         "analyze_errors": 0,
         "analyze_skip_reason": None,
         "digest_items": 0,
+        "push_items": 0,
         "digest_id": None,
         "pushed": False,
         "push_skipped": False,
@@ -245,6 +246,7 @@ def run_pipeline_job(
                 feishu_webhook_url=str(job["feishu_webhook_url"] or "").strip(),
             )
             stats["digest_items"] = dstats.get("digest_items", 0)
+            stats["push_items"] = dstats.get("push_items", 0)
             stats["digest_id"] = dstats.get("digest_id")
             stats["pushed"] = dstats.get("pushed", False)
             stats["push_skipped"] = dstats.get("push_skipped", False)
@@ -313,6 +315,7 @@ def run_once(
         "analyze_keyword_skipped": 0,
         "analyze_errors": 0,
         "digest_items": 0,
+        "push_items": 0,
         "digest_id": None,
         "pushed": False,
     }

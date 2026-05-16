@@ -105,6 +105,8 @@ class ArticleOut(BaseModel):
     analyzed_at: str
     source_id: int
     published_at: str | None = None
+    is_pushed: bool = False
+    is_read: bool = False
 
 
 class ArticleListResponse(BaseModel):
@@ -123,6 +125,7 @@ class DashboardOut(BaseModel):
     enabled_sources_count: int
     raw_items_count: int
     analyzed_count: int
+    read_count: int
     quality_count: int
     pending_analyze: int
     digest_job_id: int | None = None
@@ -223,6 +226,7 @@ class JobRunDetailOut(BaseModel):
     pipeline_job_name: str | None = None
     trigger: str
     digest_id: int | None = None
+    preview: str | None = None
     result_json: str | None = None
     markdown_body: str | None = None
 

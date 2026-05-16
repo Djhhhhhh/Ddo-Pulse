@@ -26,7 +26,22 @@ class Database:
         if self._conn is None:
             self._conn = connect(self.db_path)
             self._migrate_pipeline_jobs_feishu_webhook()
+            self._migrate_analyzed_items_push_read()
         return self._conn
+
+    def _migrate_analyzed_items_push_read(self) -> None:
+        tbl = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='analyzed_items'"
+        ).fetchone()
+        if tbl is None:
+            return
+        rows = self._conn.execute("PRAGMA table_info(analyzed_items)").fetchall()
+        names = {str(r[1]) for r in rows}
+        if "pushed_at" not in names:
+            self._conn.execute("ALTER TABLE analyzed_items ADD COLUMN pushed_at TEXT")
+        if "read_at" not in names:
+            self._conn.execute("ALTER TABLE analyzed_items ADD COLUMN read_at TEXT")
+        self._conn.commit()
 
     def _migrate_pipeline_jobs_feishu_webhook(self) -> None:
         # Runs on every new connection. Skip until schema exists (init_schema uses
@@ -234,11 +249,12 @@ class Database:
             SELECT
                 a.id, a.raw_item_id, a.profile_id, a.is_quality, a.score,
                 a.categories_json, a.summary_zh, a.reason, a.analyzed_at,
+                a.pushed_at, a.read_at,
                 r.title, r.url, r.source_id, r.published_at
             FROM analyzed_items a
             INNER JOIN raw_items r ON r.id = a.raw_item_id
             WHERE {where}
-            ORDER BY a.analyzed_at DESC
+            ORDER BY a.score IS NULL, a.score DESC, a.analyzed_at DESC
             LIMIT ? OFFSET ?
             """,
             params,
@@ -273,6 +289,12 @@ class Database:
 
     def count_analyzed_items(self) -> int:
         row = self.conn.execute("SELECT COUNT(*) AS c FROM analyzed_items").fetchone()
+        return int(row["c"]) if row else 0
+
+    def count_read_items(self) -> int:
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM analyzed_items WHERE read_at IS NOT NULL"
+        ).fetchone()
         return int(row["c"]) if row else 0
 
     def add_llm_profile(
@@ -685,6 +707,7 @@ class Database:
             SELECT
                 a.id, a.raw_item_id, a.profile_id, a.is_quality, a.score,
                 a.categories_json, a.summary_zh, a.reason, a.analyzed_at,
+                a.pushed_at, a.read_at,
                 r.title, r.url, r.source_id, r.published_at
             FROM analyzed_items a
             INNER JOIN raw_items r ON r.id = a.raw_item_id
@@ -693,16 +716,82 @@ class Database:
             (analyzed_id,),
         ).fetchone()
 
+    def mark_articles_pushed(self, analyzed_ids: list[int]) -> int:
+        if not analyzed_ids:
+            return 0
+        now = storage_now_iso()
+        placeholders = ",".join("?" * len(analyzed_ids))
+        cur = self.conn.execute(
+            f"""
+            UPDATE analyzed_items
+            SET pushed_at = ?, read_at = COALESCE(read_at, ?)
+            WHERE id IN ({placeholders}) AND pushed_at IS NULL
+            """,
+            [now, now, *analyzed_ids],
+        )
+        self.conn.commit()
+        return int(cur.rowcount)
+
+    def mark_article_read(self, analyzed_id: int) -> bool:
+        now = storage_now_iso()
+        cur = self.conn.execute(
+            """
+            UPDATE analyzed_items
+            SET read_at = COALESCE(read_at, ?)
+            WHERE id = ?
+            """,
+            (now, analyzed_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def mark_article_unread(self, analyzed_id: int) -> bool:
+        cur = self.conn.execute(
+            """
+            UPDATE analyzed_items
+            SET read_at = NULL
+            WHERE id = ?
+            """,
+            (analyzed_id,),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def list_analyzed_items_by_ids(self, analyzed_ids: list[int]) -> list[sqlite3.Row]:
+        if not analyzed_ids:
+            return []
+        placeholders = ",".join("?" * len(analyzed_ids))
+        return list(
+            self.conn.execute(
+                f"""
+                SELECT
+                    a.id, a.raw_item_id, a.is_quality, a.score,
+                    a.categories_json, a.summary_zh, a.reason, a.analyzed_at,
+                    a.pushed_at, a.read_at,
+                    r.title, r.url
+                FROM analyzed_items a
+                INNER JOIN raw_items r ON r.id = a.raw_item_id
+                WHERE a.id IN ({placeholders})
+                ORDER BY a.score IS NULL, a.score DESC, a.analyzed_at DESC
+                """,
+                analyzed_ids,
+            ).fetchall()
+        )
+
     def list_digest_candidates(
         self,
         score_threshold: int,
         limit: int = 8,
         source_ids: list[int] | None = None,
+        *,
+        exclude_pushed: bool = True,
     ) -> list[sqlite3.Row]:
         if source_ids is not None and len(source_ids) == 0:
             return []
         clause = "a.is_quality = 1 AND a.score >= ?"
         params: list[Any] = [score_threshold]
+        if exclude_pushed:
+            clause += " AND a.pushed_at IS NULL"
         if source_ids:
             placeholders = ",".join("?" * len(source_ids))
             clause += f" AND r.source_id IN ({placeholders})"
@@ -714,16 +803,39 @@ class Database:
                 SELECT
                     a.id, a.raw_item_id, a.is_quality, a.score,
                     a.categories_json, a.summary_zh, a.reason, a.analyzed_at,
+                    a.pushed_at, a.read_at,
                     r.title, r.url
                 FROM analyzed_items a
                 INNER JOIN raw_items r ON r.id = a.raw_item_id
                 WHERE {clause}
-                ORDER BY a.score DESC, a.analyzed_at DESC
+                ORDER BY a.score IS NULL, a.score DESC, a.analyzed_at DESC
                 LIMIT ?
                 """,
                 params,
             ).fetchall()
         )
+
+    def merged_digest_item_ids(
+        self, job_id: int, date: str, new_ids: list[int]
+    ) -> list[int]:
+        """Return existing digest item ids for (job, date) plus new ids, de-duplicated."""
+        existing = self.get_digest_by_date_and_job(date, job_id)
+        merged: list[int] = []
+        seen: set[int] = set()
+        if existing:
+            try:
+                for raw_id in json.loads(existing["item_ids_json"] or "[]"):
+                    iid = int(raw_id)
+                    if iid not in seen:
+                        seen.add(iid)
+                        merged.append(iid)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+        for iid in new_ids:
+            if iid not in seen:
+                seen.add(iid)
+                merged.append(iid)
+        return merged
 
     def get_digest_by_date_and_job(self, date: str, job_id: int) -> sqlite3.Row | None:
         return self.conn.execute(
@@ -1020,6 +1132,9 @@ class Database:
         return True
 
     def delete_pipeline_job(self, job_id: int) -> bool:
+        self.conn.execute(
+            "DELETE FROM job_runs WHERE pipeline_job_id = ?", (job_id,)
+        )
         cur = self.conn.execute(
             "DELETE FROM pipeline_jobs WHERE id = ?", (job_id,)
         )
@@ -1068,7 +1183,7 @@ class Database:
                 """
                 SELECT j.*, p.name AS pipeline_job_name
                 FROM job_runs j
-                LEFT JOIN pipeline_jobs p ON p.id = j.pipeline_job_id
+                INNER JOIN pipeline_jobs p ON p.id = j.pipeline_job_id
                 ORDER BY j.id DESC
                 LIMIT ?
                 """,
@@ -1079,7 +1194,7 @@ class Database:
                 """
                 SELECT j.*, p.name AS pipeline_job_name
                 FROM job_runs j
-                LEFT JOIN pipeline_jobs p ON p.id = j.pipeline_job_id
+                INNER JOIN pipeline_jobs p ON p.id = j.pipeline_job_id
                 WHERE j.pipeline_job_id = ?
                 ORDER BY j.id DESC
                 LIMIT ?

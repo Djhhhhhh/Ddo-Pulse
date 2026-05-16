@@ -136,6 +136,13 @@ watch(selectedRunId, (id) => {
           <p class="stat-num">{{ dashboard.analyzed_count }}</p>
         </div>
       </div>
+      <div class="stat-card">
+        <span class="stat-icon" aria-hidden="true">✓</span>
+        <div>
+          <p class="stat-label">已读</p>
+          <p class="stat-num">{{ dashboard.read_count }}</p>
+        </div>
+      </div>
       <div class="stat-card stat-card--warn">
         <span class="stat-icon" aria-hidden="true">⏱</span>
         <div>
@@ -192,6 +199,7 @@ watch(selectedRunId, (id) => {
           <div v-if="runDetail.markdown_body" class="detail-md detail-md--scaled">
             <SafeMarkdown :source="runDetail.markdown_body" />
           </div>
+          <p v-else-if="runDetail.preview" class="detail-preview">{{ runDetail.preview }}</p>
           <div v-else-if="runDetail.result_json" class="detail-json">
             <pre>{{ runDetail.result_json }}</pre>
           </div>
@@ -205,7 +213,7 @@ watch(selectedRunId, (id) => {
 
 <style scoped>
 .dash-page {
-  max-width: 1200px;
+  max-width: 1280px;
 }
 .dash-head {
   display: flex;
@@ -224,15 +232,22 @@ watch(selectedRunId, (id) => {
 }
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
   margin: 24px 0;
+}
+@media (max-width: 1100px) {
+  .stat-row {
+    overflow-x: auto;
+    grid-template-columns: repeat(6, minmax(132px, 1fr));
+  }
 }
 .stat-card {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: flex-start;
-  padding: 18px 20px;
+  padding: 14px 12px;
+  min-width: 0;
   border-radius: var(--radius-card);
   border: 1px solid var(--border);
   background: linear-gradient(145deg, var(--bg) 0%, var(--surface) 100%);
@@ -251,18 +266,23 @@ watch(selectedRunId, (id) => {
   background: linear-gradient(145deg, #ecfdf5 0%, var(--bg) 100%);
 }
 .stat-icon {
-  font-size: 1.4rem;
+  font-size: 1.15rem;
   opacity: 0.75;
   line-height: 1;
+  flex-shrink: 0;
 }
 .stat-label {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stat-num {
   margin: 4px 0 0;
-  font-size: 1.5rem;
+  font-size: 1.28rem;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -397,6 +417,11 @@ watch(selectedRunId, (id) => {
 .detail-md--scaled :deep(.markdown-body li) {
   font-size: 0.82rem;
   line-height: 1.5;
+}
+.detail-preview {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 .detail-json pre {
   margin: 12px 0 0;

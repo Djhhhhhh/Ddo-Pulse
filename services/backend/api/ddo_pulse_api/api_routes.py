@@ -93,6 +93,8 @@ def _article_from_row(row) -> ArticleOut:
         categories = json.loads(row["categories_json"] or "[]")
     except json.JSONDecodeError:
         pass
+    pushed_at = row["pushed_at"] if "pushed_at" in row.keys() else None
+    read_at = row["read_at"] if "read_at" in row.keys() else None
     return ArticleOut(
         id=int(row["id"]),
         title=row["title"] or "",
@@ -105,6 +107,8 @@ def _article_from_row(row) -> ArticleOut:
         analyzed_at=row["analyzed_at"],
         source_id=int(row["source_id"]),
         published_at=row["published_at"],
+        is_pushed=bool(pushed_at),
+        is_read=bool(read_at),
     )
 
 
@@ -199,6 +203,7 @@ _PUSH_SKIP_LABELS = {
     "no_webhook": "未配置 Webhook",
     "already_pushed": "该 Digest 已成功推送过",
     "no_enabled_sources": "无已启用的订阅源",
+    "no_new_items": "无未推送的精选文章",
 }
 
 
@@ -237,9 +242,13 @@ def _preview_from_job_run(row) -> str | None:
         label = _PUSH_SKIP_LABELS.get(reason, reason or "未知原因")
         parts.append(f"未推送飞书：{label}")
 
+    push_n = data.get("push_items")
+    if push_n is not None and int(push_n) > 0:
+        parts.append(f"本次推送 {push_n} 篇")
+
     digest_n = data.get("digest_items")
     if digest_n is not None and not parts:
-        parts.append(f"Digest 条目 {digest_n}")
+        parts.append(f"Digest 累计 {digest_n} 篇")
 
     if not parts:
         return str(rj)[:400] + ("…" if len(str(rj)) > 400 else "")
@@ -302,6 +311,7 @@ def dashboard(
         enabled_sources_count=db.count_sources(enabled_only=True),
         raw_items_count=db.count_raw_items(),
         analyzed_count=db.count_analyzed_items(),
+        read_count=db.count_read_items(),
         quality_count=db.count_quality_items(score_threshold=qthresh),
         pending_analyze=db.count_unanalyzed_raw_items(),
         digest_job_id=jid,
@@ -395,6 +405,25 @@ def get_article(
     if not row:
         raise HTTPException(404, "Article not found")
     return _article_from_row(row)
+
+
+@router.post("/articles/{article_id}/read", status_code=204)
+def mark_article_read(
+    article_id: int, db: Annotated[Database, Depends(get_db)]
+) -> None:
+    if not db.get_analyzed_item(article_id):
+        raise HTTPException(404, "Article not found")
+    db.mark_article_read(article_id)
+
+
+@router.delete("/articles/{article_id}/read", status_code=204)
+def mark_article_unread(
+    article_id: int, db: Annotated[Database, Depends(get_db)]
+) -> None:
+    if not db.get_analyzed_item(article_id):
+        raise HTTPException(404, "Article not found")
+    if not db.mark_article_unread(article_id):
+        raise HTTPException(404, "Article not found")
 
 
 @router.get("/sources", response_model=list[SourceOut])
@@ -685,6 +714,7 @@ def run_pipeline_job_manual(
     skip_analyze: bool = False,
     skip_digest: bool = False,
     skip_push: bool = Query(False),
+    force_push: bool = Query(True),
     analyze_limit: int = Query(50, ge=0),
 ) -> JobStatsOut:
     if not db.get_pipeline_job(job_id):
@@ -698,6 +728,7 @@ def run_pipeline_job_manual(
             analyze=not skip_analyze,
             push=False if skip_push else None,
             skip_digest=skip_digest,
+            force_push=force_push,
             analyze_limit_override=lim,
         )
         return JobStatsOut(ok=int(stats.get("errors", 0) or 0) == 0, stats=stats)
@@ -743,6 +774,7 @@ def get_job_run_api(
         else None,
         trigger=row["trigger"] or "manual",
         digest_id=int(row["digest_id"]) if row["digest_id"] is not None else None,
+        preview=_preview_from_job_run(row),
         result_json=row["result_json"],
         markdown_body=md,
     )

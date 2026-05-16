@@ -5,13 +5,9 @@
 
 > **Ddo-Pulse** 是一款轻量化的**本机信息聚合**工具：按配置定时抓取博客与订阅源，经 **OpenRouter** 等大模型筛选、分类与中文摘要后，支持**飞书推送日报**，并在**本地 Web** 浏览 Dashboard、文章与配置。
 
-将 **CLI**、**FastAPI**、**定时调度**、**SQLite 配置与数据**、**Vue 前端** 收束在同一仓库：适合个人开发者在本机完成「订阅 → 分析 → Digest → 触达」闭环。
-
 ## ✨ 项目亮点
 
-- **一端命令入口**：日常 `**ddo-pulse init` / `dev` / `stop`**；流水线、配置、MCP 等见 `ddo-pulse --help` 与 [docs/mvp.md](docs/mvp.md)
 - **本机优先、数据可控**：默认数据目录 `~/.ddo_pulse`，SQLite + 可编辑 `config.yaml`，**不依赖 `.env` 存密钥**
-- **多服务清晰分层**：后端按 `cli` / `core` / `api` / `db` / `mcp` 分包；前端在 `services/web/frontend`
 - **触达与阅读**：飞书 Webhook + 本地 Web（设置页、运行日志、文章列表等）
 - **可扩展交互**：可选 **MCP Server**（`pip install -e ".[mcp]"`），便于与 Cursor 等工具集成
 
@@ -123,6 +119,7 @@ ddo_pulse/
 │   └── web/
 │       └── frontend/          # Vue 3 + Vite
 ├── pyproject.toml
+├── LICENSE
 └── README.md
 ```
 
@@ -147,9 +144,9 @@ ddo_pulse/
 
 欢迎提交 Issue 与 PR。建议提交前：
 
-- 遵守各端 [AGENTS.md](services/backend/AGENTS.md) / [AGENTS.md](services/web/AGENTS.md) 中的约束
+- 遵守各端 AGENTS.md 中的约束
 - 对应更新文档或变更记录（如适用）
 
 ## 📄 许可证
 
-若仓库内包含 `LICENSE` 文件，以该文件为准；否则请在发布前补充许可证条款。
+本项目采用 [MIT License](LICENSE) 开源协议。

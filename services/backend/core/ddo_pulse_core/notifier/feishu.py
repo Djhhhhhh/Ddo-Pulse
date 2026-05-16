@@ -28,9 +28,13 @@ def _parse_categories(raw: str | None) -> list[str]:
     return []
 
 
-def build_feishu_post_payload(date: str, rows: list[Any]) -> dict[str, Any]:
+def build_feishu_post_payload(
+    date: str, rows: list[Any], *, batch_label: str | None = None
+) -> dict[str, Any]:
     """Rich post message for Feishu bot webhook."""
     title = f"Ddo-Pulse 精选 · {date}"
+    if batch_label:
+        title = f"{title} · {batch_label}"
     blocks: list[list[dict[str, str]]] = []
 
     if not rows:

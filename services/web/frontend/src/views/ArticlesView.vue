@@ -29,6 +29,23 @@ function closeDialog() {
   selected.value = null;
 }
 
+async function toggleRead(a: Article) {
+  try {
+    if (a.is_read) {
+      await api.markArticleUnread(a.id);
+      a.is_read = false;
+    } else {
+      await api.markArticleRead(a.id);
+      a.is_read = true;
+    }
+    const inList = items.value.find((x) => x.id === a.id);
+    if (inList) inList.is_read = a.is_read;
+    if (selected.value?.id === a.id) selected.value = { ...selected.value, is_read: a.is_read };
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
 async function loadCategories() {
   try {
     const r = await api.articleCategories(365);
@@ -65,6 +82,10 @@ function categoriesLine(a: Article): string {
   return a.categories?.length ? a.categories.join(" · ") : "";
 }
 
+function isRead(a: Article): boolean {
+  return a.is_read;
+}
+
 onMounted(async () => {
   await loadCategories();
   await load();
@@ -76,7 +97,7 @@ watch([days, minScore, page, category], load);
 <template>
   <div class="articles-page">
     <h1>文章</h1>
-    <p class="muted">已分析文章，共 {{ total }} 篇</p>
+    <p class="muted">已分析文章，共 {{ total }} 篇 · 默认按评分从高到低</p>
 
     <div class="layout">
       <aside class="side card">
@@ -121,6 +142,7 @@ watch([days, minScore, page, category], load);
                 <th class="col-n">#</th>
                 <th class="col-title">标题</th>
                 <th class="col-score">评分</th>
+                <th class="col-status">状态</th>
                 <th class="col-cats">分类</th>
                 <th class="col-time">分析时间</th>
               </tr>
@@ -132,6 +154,14 @@ watch([days, minScore, page, category], load);
                   <span class="cell-ellipsis" :title="a.title">{{ a.title }}</span>
                 </td>
                 <td class="cell-score">{{ a.score ?? "—" }}</td>
+                <td class="cell-status">
+                  <span
+                    class="status-text"
+                    :class="isRead(a) ? 'status-text--read' : 'status-text--unread'"
+                  >
+                    {{ isRead(a) ? "已读" : "未读" }}
+                  </span>
+                </td>
                 <td class="cell-cats">
                   <span class="cell-ellipsis" :title="categoriesLine(a) || undefined">{{
                     categoriesLine(a) || "—"
@@ -163,7 +193,7 @@ watch([days, minScore, page, category], load);
       <div v-if="selected" class="dialog-inner">
         <button type="button" class="close-x" aria-label="关闭" @click="closeDialog">×</button>
         <h2>{{ selected.title }}</h2>
-        <p>
+        <p class="meta-tags">
           <span class="tag">{{ selected.score ?? "—" }} 分</span>
           <span v-if="selected.is_quality" class="tag">精选</span>
           <span v-for="c in selected.categories" :key="c" class="tag">{{ c }}</span>
@@ -177,7 +207,12 @@ watch([days, minScore, page, category], load);
             <p class="muted">{{ selected.reason }}</p>
           </div>
         </section>
-        <a :href="selected.url" class="btn btn-primary" target="_blank" rel="noopener">阅读原文</a>
+        <div class="dialog-actions">
+          <a :href="selected.url" class="btn btn-primary" target="_blank" rel="noopener">阅读原文</a>
+          <button type="button" class="btn btn-secondary" @click="toggleRead(selected)">
+            {{ selected.is_read ? "标为未读" : "标为已读" }}
+          </button>
+        </div>
       </div>
     </dialog>
   </div>
@@ -292,29 +327,60 @@ watch([days, minScore, page, category], load);
 .data-table {
   table-layout: fixed;
   width: 100%;
-  min-width: 640px;
+  min-width: 720px;
 }
 .col-n {
-  width: 44px;
-}
-.col-score {
-  width: 56px;
+  width: 3rem;
 }
 .col-title {
-  width: 36%;
+  width: 28%;
+}
+.col-score {
+  width: 3.25rem;
+}
+.col-status {
+  width: 3rem;
 }
 .col-cats {
-  width: 22%;
+  width: 12%;
 }
 .col-time {
-  width: 148px;
+  width: 8.75rem;
 }
 .cell-title,
 .cell-cats {
   overflow: hidden;
+  max-width: 0;
 }
 .cell-score {
   white-space: nowrap;
+}
+.cell-status {
+  vertical-align: middle;
+}
+.status-text {
+  font-size: inherit;
+  font-weight: 500;
+}
+.status-text--unread {
+  color: #c2410c;
+}
+.status-text--read {
+  color: #64748b;
+}
+.meta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+}
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  align-items: center;
 }
 .cell-ellipsis {
   display: block;

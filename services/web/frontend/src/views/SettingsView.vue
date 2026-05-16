@@ -375,27 +375,35 @@ async function runCurrentJob() {
     const wantPush = Boolean(job.push_digest);
     const params: {
       skip_push: boolean;
+      force_push?: boolean;
       analyze_limit?: number;
     } = {
       skip_push: !wantPush,
+      force_push: wantPush,
     };
     if (job.analyze_limit > 0) params.analyze_limit = job.analyze_limit;
     const res = await api.runPipelineJob(id, params);
     const st = res.stats as Record<string, unknown>;
     const pushed = Boolean(st.pushed);
+    const pushItems = Number(st.push_items ?? 0);
     const pushSkipped = Boolean(st.push_skipped);
     const pushReason = String(st.push_skip_reason || "");
     const pushLabels: Record<string, string> = {
       push_disabled: "已跳过（任务未开启推送 Digest）",
       no_webhook: "已跳过（未配置 Webhook）",
       already_pushed: "已跳过（该 Digest 已成功推送过）",
+      no_new_items: "已跳过（无未推送的精选文章）",
       no_enabled_sources: "已跳过（无已启用的订阅源）",
     };
 
     if (!res.ok) {
       runMsg.value = "运行结束（状态异常，请查看下方日志）";
     } else if (wantPush) {
-      if (pushed) runMsg.value = "本次运行已完成，已发起飞书推送";
+      if (pushed)
+        runMsg.value =
+          pushItems > 0
+            ? `本次运行已完成，已推送 ${pushItems} 篇到飞书（按评分取未推送精选）`
+            : "本次运行已完成，已发起飞书推送";
       else if (pushSkipped)
         runMsg.value = `本次运行已完成；飞书：${pushLabels[pushReason] || `已跳过（${pushReason || "未知原因"}）`}`;
       else runMsg.value = "本次运行已完成";
@@ -634,9 +642,10 @@ function runStatusClass(status: string) {
                     </div>
                     <dl class="summary-dl">
                       <div class="summary-row">
-                        <dt>Cron</dt>
+                        <dt>调度 Cron</dt>
                         <dd>
                           <code class="cron-code">{{ selectedJob.schedule_cron }}</code>
+                          <span class="muted small cron-summary-hint">（分 时 日 月 周）</span>
                         </dd>
                       </div>
                       <div class="summary-row">
@@ -844,8 +853,32 @@ function runStatusClass(status: string) {
           </label>
         </div>
 
-        <label class="label">Cron（五段：分 时 日 月 周）</label>
-        <input v-model="jobModal.schedule_cron" class="input" placeholder="每日 8:00 → 0 8 * * *" />
+        <label class="label">Cron 调度表达式</label>
+        <input
+          v-model="jobModal.schedule_cron"
+          class="input cron-input"
+          placeholder="0 8 * * *"
+          spellcheck="false"
+        />
+        <div class="cron-help muted small">
+          <p class="cron-help-lead">
+            标准 <strong>五段</strong>格式，字段之间用空格分隔：
+            <code class="cron-code">分</code>
+            <code class="cron-code">时</code>
+            <code class="cron-code">日</code>
+            <code class="cron-code">月</code>
+            <code class="cron-code">周</code>
+          </p>
+          <ul class="cron-examples">
+            <li><code>0 8 * * *</code> — 每天 08:00（北京时间，与系统时区一致）</li>
+            <li><code>0 9,18 * * 1-5</code> — 周一至周五 09:00 与 18:00</li>
+            <li><code>30 7 * * *</code> — 每天 07:30</li>
+            <li><code>*/15 * * * *</code> — 每 15 分钟（慎用，频率过高）</li>
+          </ul>
+          <p class="cron-help-note">
+            <code>*</code> 表示任意；<code>1-5</code> 表示范围；<code>9,18</code> 表示多个取值；<code>*/N</code> 表示每隔 N。
+          </p>
+        </div>
 
         <label class="label">飞书 Webhook URL</label>
         <input
@@ -881,8 +914,11 @@ function runStatusClass(status: string) {
           <summary>抓取与 Digest（可选）</summary>
           <label class="label">每轮最多分析条数（0=不限制）</label>
           <input v-model.number="jobModal.analyze_limit" type="number" class="input" min="0" />
-          <label class="label">Digest Top N</label>
+          <label class="label">每轮推送篇数（Top N）</label>
           <input v-model.number="jobModal.digest_top_n" type="number" class="input" min="1" />
+          <p class="muted small field-hint">
+            每轮从<strong>未推送</strong>的精选文章中按评分从高到低取 N 篇推送；已推送过的不会重复发送。
+          </p>
           <label class="chk-inline">
             <input v-model="jobModal.push_digest" type="checkbox" /> 运行结束后推送 Digest 到上述飞书 Webhook
           </label>
@@ -1239,6 +1275,40 @@ function runStatusClass(status: string) {
   padding: 2px 8px;
   border-radius: 6px;
   background: var(--surface);
+}
+.cron-help {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  line-height: 1.5;
+}
+.cron-help-lead {
+  margin: 0 0 8px;
+}
+.cron-help-lead .cron-code {
+  margin: 0 2px;
+}
+.cron-examples {
+  margin: 0 0 8px;
+  padding-left: 1.1rem;
+}
+.cron-examples li {
+  margin: 4px 0;
+}
+.cron-examples code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+}
+.cron-help-note {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.cron-input {
+  font-family: ui-monospace, monospace;
+}
+.cron-summary-hint {
+  margin-left: 6px;
 }
 .padded-hint {
   padding: 24px 8px;

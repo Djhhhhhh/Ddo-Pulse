@@ -67,7 +67,9 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
     categories_json TEXT DEFAULT '[]',
     summary_zh TEXT,
     reason TEXT,
-    analyzed_at TEXT NOT NULL
+    analyzed_at TEXT NOT NULL,
+    pushed_at TEXT,
+    read_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS digests (
