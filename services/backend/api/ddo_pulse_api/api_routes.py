@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import json
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -30,6 +32,8 @@ from ddo_pulse_api.schemas import (
     PipelineJobUpdate,
     ProfileOut,
     ProfileUpdate,
+    RssSeedItem,
+    RssSeedList,
     RunOnceRequest,
     SettingsOut,
     SettingsUpdate,
@@ -278,6 +282,63 @@ def _job_run_list_out(row) -> JobRunOut:
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse()
+
+
+_CSV_CACHE: list[RssSeedItem] | None = None
+
+
+def _load_rss_csv() -> list[RssSeedItem]:
+    """Load and parse the RSS seed library CSV, cached after first read."""
+    global _CSV_CACHE
+    if _CSV_CACHE is not None:
+        return _CSV_CACHE
+
+    # Try multiple candidate paths
+    candidates = [
+        Path(__file__).resolve().parents[4] / "docs" / "ddo_pulse_rss_seed_library.csv",
+        Path.cwd() / "docs" / "ddo_pulse_rss_seed_library.csv",
+    ]
+    csv_path = next((p for p in candidates if p.exists()), None)
+    if csv_path is None:
+        _CSV_CACHE = []
+        return _CSV_CACHE
+
+    items: list[RssSeedItem] = []
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            url = (row.get("rss_url") or "").strip()
+            if not url:
+                continue
+            items.append(
+                RssSeedItem(
+                    category=(row.get("类别") or "").strip(),
+                    name=(row.get("源名称") or "").strip(),
+                    type="rss",
+                    url=url,
+                    site=(row.get("官网链接") or "").strip(),
+                    freq=(row.get("内容频率") or "").strip(),
+                    desc=(row.get("简介") or "").strip(),
+                    priority=(row.get("接入优先级") or "").strip(),
+                )
+            )
+    _CSV_CACHE = items
+    return _CSV_CACHE
+
+
+@router.get("/rss-library", response_model=RssSeedList)
+def rss_library() -> RssSeedList:
+    """Return parsed RSS seed library from CSV."""
+    return RssSeedList(items=_load_rss_csv())
+
+
+@router.post("/rss-library/reload")
+def rss_library_reload() -> dict:
+    """Force reload the RSS library CSV (e.g. after file update)."""
+    global _CSV_CACHE
+    _CSV_CACHE = None
+    items = _load_rss_csv()
+    return {"count": len(items)}
 
 
 @router.get("/web-config", response_model=WebConfigOut)

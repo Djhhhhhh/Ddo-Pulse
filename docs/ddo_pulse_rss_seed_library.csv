@@ -1,0 +1,50 @@
+类别,源名称,源类型,rss_url,官网链接,内容频率,简介,质量评级,适合人群,是否需要LLM分析,是否适合每日摘要,接入优先级,是否需要摘要转换,推荐的LLM分析profile,是否需要网页正文提取
+论文/博客,Hugging Face 博客,官方博客,https://huggingface.co/blog/feed.xml,https://huggingface.co/blog,周更,模型发布/开源工具/技术博客,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P1-必须接入,否（博客RSS通常含摘要）,paper-analyzer,否
+论文/博客,Hugging Face Papers,论文聚合,,https://huggingface.co/papers,日更,热门新论文聚合（需RSSHub）,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P1-必须接入,否,paper-analyzer,否
+论文/博客,Papers With Code,论文聚合,,https://paperswithcode.com,日更,热门论文排行（已并入HF）,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P2-次优先,否,paper-analyzer,否
+论文/博客,The Gradient,学术博客,https://thegradient.pub/rss/,https://thegradient.pub,月更,深度学习深度分析文章,⭐⭐⭐⭐⭐,AI研究者,是,是,P2-次优先,否（Ghost博客RSS含摘要）,paper-analyzer,否
+论文/博客,Distill.pub,交互式博客,https://distill.pub/rss.xml,https://distill.pub,已停更,交互式ML可视化文章（已归档）,⭐⭐⭐⭐⭐,AI研究者/教育者,是,否（已停更）,P3-可选,否,paper-analyzer,否
+论文/博客,Lil'Log,Lilian Weng博客,https://lilianweng.github.io/index.xml,https://lilianweng.github.io,月更,OpenAI研究员长文博客,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P2-次优先,否（Hugo博客RSS含摘要）,paper-analyzer,否
+论文/博客,Jay Alammar博客,个人博客,https://jalammar.github.io/feed.xml,https://jalammar.github.io,季更,ML可视化解释博客,⭐⭐⭐⭐⭐,AI学习者/研究者,是,是,P3-可选,否（Jekyll博客RSS含摘要）,paper-analyzer,否
+公司/机构,Google AI Blog,官方博客,https://blog.google/technology/ai/rss/,https://blog.google/technology/ai/,周更,Google AI研究成果与产品,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P1-必须接入,否（博客RSS通常含摘要）,paper-analyzer,否
+公司/机构,OpenAI Blog,官方博客,https://openai.com/blog/rss.xml,https://openai.com/blog,周更,ChatGPT/GPT技术博客,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P1-必须接入,否,paper-analyzer,否
+公司/机构,Anthropic Research,官方研究,,https://anthropic.com/research,不定期,Claude背后的研究（需RSSHub）,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P1-必须接入,否,paper-analyzer,否
+公司/机构,Microsoft Research Blog,官方博客,https://www.microsoft.com/en-us/research/feed/,https://microsoft.com/en-us/research/blog/,周更,Azure/微软研究院博客,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P2-次优先,否,paper-analyzer,否
+公司/机构,Meta AI Blog,官方博客,https://ai.meta.com/blog/feed/,https://ai.meta.com/blog/,周更,PyTorch/Llama/FAIR研究,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P2-次优先,否,paper-analyzer,否
+公司/机构,DeepMind Blog,官方博客,,https://deepmind.google/discover/blog/,周更,AlphaFold/Gemini研究博客,⭐⭐⭐⭐⭐,AI研究者/开发者,是,是,P2-次优先,否,paper-analyzer,否
+论文/博客,arXiv CS.AI,预印本,https://rss.arxiv.org/rss/cs.AI,https://arxiv.org/list/cs.AI/new,日更,人工智能预印本论文,⭐⭐⭐⭐⭐,AI研究者,是,是,P1-必须接入,是（需提取标题摘要）,paper-analyzer,是
+论文/博客,arXiv cs.CL,预印本,https://rss.arxiv.org/rss/cs.CL,https://arxiv.org/list/cs.CL/new,日更,计算语言学/自然语言处理,⭐⭐⭐⭐⭐,研究者/开发者,是,是,P1-必须接入,是（需提取标题摘要）,paper-analyzer,是
+论文/博客,arXiv cs.CV,预印本,https://rss.arxiv.org/rss/cs.CV,https://arxiv.org/list/cs.CV/new,日更,计算机视觉/图像识别/图像生成,⭐⭐⭐⭐⭐,研究者/开发者,是,是,P1-必须接入,是（需提取标题摘要）,paper-analyzer,是
+论文/博客,arXiv cs.LG,预印本,https://rss.arxiv.org/rss/cs.LG,https://arxiv.org/list/cs.LG/new,日更,机器学习理论与方法,⭐⭐⭐⭐⭐,研究者/开发者,是,是,P1-必须接入,是（需提取标题摘要）,paper-analyzer,是
+论文/博客,Semantic Scholar Blog,论文聚合,,https://semanticscholar.org,日更,AI驱动论文搜索（无RSS，用API）,⭐⭐⭐⭐⭐,研究者,是,是,P2-次优先,否,paper-analyzer,否
+论文/博客,The Batch,Newsletter,,https://deeplearning.ai/the-batch/,周更,Andrew Ng的AI新闻周刊（需订阅）,⭐⭐⭐⭐⭐,开发者/决策者,是,是,P2-次优先,否,tech-analyzer,否
+论文/博客,Sebastian Ruder博客,NLP/ML博客,https://ruder.io/rss/,https://ruder.io,月更,NLP/迁移学习/多语言AI,⭐⭐⭐⭐⭐,研究者,是,是,P2-次优先,否,paper-analyzer,否
+论文/博客,Chip Huyen博客,工程博客,https://huyenchip.com/feed.xml,https://huyenchip.com/blog,月更,ML系统/特征工程/模型监控,⭐⭐⭐⭐⭐,工程师/研究者,是,是,P2-次优先,否,tech-analyzer,否
+论文/博客,Eugene Yan博客,工程博客,https://eugeneyan.com/rss/,https://eugeneyan.com,月更,推荐系统/ML工程实践,⭐⭐⭐⭐⭐,工程师,是,是,P2-次优先,否,tech-analyzer,否
+论文/博客,Lilian Weng博客,个人博客,https://lilianweng.github.io/index.xml,https://lilianweng.github.io,月更,AI综述性长文博客,⭐⭐⭐⭐⭐,研究者/开发者,是,是,P2-次优先,否,paper-analyzer,否
+论文/博客,Ahead of AI,Newsletter,https://magazine.sebastianraschka.com/feed,https://magazine.sebastianraschka.com,周更,Sebastian Raschka的AI技术深度解析,⭐⭐⭐⭐⭐,研究者/开发者,是,是,P2-次优先,否,paper-analyzer,否
+论文/博客,The Decoder,新闻媒体,https://the-decoder.com/feed/,https://the-decoder.com,日更,AI产品/伦理/最新动态,⭐⭐⭐⭐⭐,行业从业者/研究者,是,是,P2-次优先,否,tech-analyzer,否
+科技媒体,VentureBeat AI,科技媒体,https://venturebeat.com/category/ai/feed/,https://venturebeat.com/category/ai/,日更,LLM/企业AI/产品动态,⭐⭐⭐⭐⭐,行业从业者/开发者,是,是,P2-次优先,否,tech-analyzer,否
+科技媒体,TechCrunch AI,科技媒体,https://techcrunch.com/category/artificial-intelligence/feed/,https://techcrunch.com/category/artificial-intelligence/,日更,AI创业/投资/技术新闻,⭐⭐⭐⭐⭐,行业从业者/开发者,是,是,P2-次优先,否,tech-analyzer,否
+科技媒体,MIT Tech Review AI,科技媒体,https://www.technologyreview.com/topic/artificial-intelligence/feed,https://technologyreview.com/topic/artificial-intelligence/,周更,AI政策/伦理/前沿技术,⭐⭐⭐⭐⭐,研究者/决策者,是,是,P2-次优先,否,tech-analyzer,否
+科技媒体,Ars Technica AI,科技媒体,https://feeds.arstechnica.com/arstechnica/features,https://arstechnica.com,周更,技术新闻与深度报道,⭐⭐⭐⭐,技术爱好者,否,是,P3-可选,否,tech-analyzer,否
+科技媒体,The Verge AI,科技媒体,,https://theverge.com/ai-artificial-intelligence,日更,AI产品/消费科技,⭐⭐⭐⭐,行业从业者/爱好者,是,是,P3-可选,否,tech-analyzer,否
+科技媒体,Wired AI,科技媒体,,https://wired.com/tag/artificial-intelligence,周更,技术深度报道/政策,⭐⭐⭐⭐,行业从业者/决策者,是,是,P3-可选,否,tech-analyzer,否
+科技媒体,ZDNet AI,科技媒体,,https://zdnet.com/topic/artificial-intelligence,日更,企业AI/技术评测,⭐⭐⭐,企业IT决策者,是,是,P3-可选,否,tech-analyzer,否
+科技媒体,IEEE Spectrum AI,科技媒体,,https://spectrum.ieee.org/topic/artificial-intelligence,周更,硬件/AI芯片/工程前沿,⭐⭐⭐⭐⭐,工程师/研究者,是,是,P2-次优先,否,tech-analyzer,否
+科技媒体,Analytics India Magazine,科技媒体,,https://analyticsindiamag.com,日更,印度AI行业/全球AI新闻,⭐⭐⭐,行业从业者,否,是,P3-可选,否,tech-analyzer,否
+科技媒体,Synced AI,科技媒体,,https://syncedreview.com,日更,中英文AI新闻/研究速递,⭐⭐⭐,研究者/开发者,否,是,P3-可选,否,tech-analyzer,否
+中文媒体,量子位,中文媒体,https://www.qbitai.com/feed,https://www.qbitai.com,日更,中文AI新闻/模型解读/行业动态,⭐⭐⭐⭐⭐,中文开发者/研究者,是,是,P1-必须接入,否,tech-analyzer,否
+中文媒体,机器之心,中文媒体,,https://www.jiqizhixin.com,日更,中文AI研究/技术新闻（需RSSHub）,⭐⭐⭐⭐⭐,中文开发者/研究者,是,是,P1-必须接入,是,tech-analyzer,是
+中文媒体,新智元,微信公众号,,https://mp.weixin.qq.com,日更,中文AI行业新闻/研究解读,⭐⭐⭐⭐,中文开发者/研究者,否,是,P2-次优先,是,tech-analyzer,是
+中文媒体,AI 前线,中文媒体,,https://www.jiqizhixin.com,日更,中文AI技术前沿（已并入机器之心）,⭐⭐⭐⭐,中文开发者/研究者,是,是,P2-次优先,是,tech-analyzer,是
+中文媒体,AI科技评论,微信公众号,,https://mp.weixin.qq.com,日更,腾讯AI Lab研究/中文AI研究,⭐⭐⭐⭐,中文研究者,是,是,P2-次优先,是,tech-analyzer,是
+中文媒体,InfoQ AI,中文媒体,,https://www.infoq.cn/topic/AI,周更,中文AI工程实践/架构设计,⭐⭐⭐⭐⭐,中文开发者,是,是,P2-次优先,是,tech-analyzer,是
+中文媒体,CSDN AI,中文媒体,,https://www.csdn.net,日更,中文技术社区AI内容,⭐⭐⭐,中文开发者,否,是,P3-可选,是,tech-analyzer,是
+中文媒体,知乎AI话题,问答社区,,https://www.zhihu.com,日更,中文AI讨论/问答,⭐⭐⭐,中文学习者,否,否,P3-可选,是,tech-analyzer,是
+中文媒体,腾讯云开发者AI,中文媒体,,https://cloud.tencent.com/developer,周更,腾讯云AI技术博客,⭐⭐⭐⭐,中文开发者,是,是,P3-可选,是,tech-analyzer,是
+中文媒体,阿里云AI,中文媒体,,https://developer.aliyun.com,周更,阿里云AI技术博客,⭐⭐⭐⭐,中文开发者,是,是,P3-可选,是,tech-analyzer,是
+个人/播客,The Robot Brains Podcast,播客,,https://www.therobotbrains.ai,周更,Pieter Abbeel主持AI播客,⭐⭐⭐⭐⭐,研究者/开发者,是,是,P3-可选,是,podcast-analyzer,是
+个人/播客,Lex Fridman Podcast,播客,,https://lexfridman.com/podcast,周更,深度AI/科技对话播客,⭐⭐⭐⭐⭐,研究者/开发者/爱好者,是,是,P3-可选,是,podcast-analyzer,是
+个人/播客,Towards Data Science,Medium博客,,https://towardsdatascience.com,日更,数据科学/ML实践教程,⭐⭐⭐⭐,开发者/学习者,是,是,P2-次优先,是,tech-analyzer,是
+个人/播客,Distill.pub社区,交互式博客,,https://distill.pub,已停更,交互式ML研究文章,⭐⭐⭐⭐⭐,研究者/教育者,是,否（已停更）,P3-可选,否,paper-analyzer,否

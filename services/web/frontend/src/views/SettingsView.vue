@@ -5,8 +5,11 @@ import {
   type JobRun,
   type PipelineJob,
   type Profile,
+  type RssSeedItem,
   type Source,
 } from "../api/client";
+import ScoringRubricPreview from "../components/ScoringRubricPreview.vue";
+import PromptTemplateSelector from "../components/PromptTemplateSelector.vue";
 
 type Section = "pipeline" | "llm";
 
@@ -22,8 +25,13 @@ const profiles = ref<Profile[]>([]);
 
 const profileKey = ref<Record<number, string>>({});
 const runMsg = ref("");
-const jobRunning = ref(false);
 const jobRuns = ref<JobRun[]>([]);
+const isSubmittingRun = ref(false);
+
+/** 基于后端实际运行状态判断当前任务是否正在运行 */
+const jobRunning = computed(
+  () => isSubmittingRun.value || jobRuns.value.some((r) => r.status === "running")
+);
 
 const sourceDialog = ref<HTMLDialogElement | null>(null);
 const newSource = ref({
@@ -35,67 +43,43 @@ const newSource = ref({
 });
 const testMsg = ref("");
 
-/** 评分侧重点：用户只需选类型，具体打分细则由预设文案给出（仍可微调）。 */
-const RUBRIC_PRESETS = [
-  {
-    id: "balanced",
-    label: "均衡精选（推荐）",
-    hint: "兼顾新颖度、可读性与主题相关度，适合多数订阅场景。",
-    body: `采用 10 分制为文章打分，维度如下：
-- 信息新颖度与对目标读者的实际价值（约占 30%）
-- 论述是否清晰、结论是否可验证或可落地（约占 30%）
-- 与当前关注主题 / 关键词的相关程度（约占 40%）
+/** RSS 源库 — 从后端 API 获取 */
+const rssLibrary = ref<RssSeedItem[]>([]);
+const rssSelectedUrl = ref("");
+const rssFilter = ref("");
+const rssCategoryFilter = ref("");
 
-分数含义建议：
-9–10：必读级，有明显稀缺观点或可立刻行动的建议。
-7–8：值得一读，有清晰增量信息。
-5–6：可读但增量有限或偏综述。
-1–4：价值偏低、陈旧信息较多或与主题弱相关。
-
-请严格按系统约定的 JSON 结构输出分数与理由。`,
-  },
-  {
-    id: "tech_depth",
-    label: "技术深度优先",
-    hint: "适合开发者向订阅：实现细节、教训与可复现性权重大。",
-    body: `采用 10 分制，偏重技术与工程深度：
-- 是否有具体实现细节、数据、边界情况或代码级洞察（权重大）
-- 是否澄清常见误区、给出可操作的排查或优化路径
-- 泛泛而谈、纯营销口径或与实践脱节则显著扣分
-
-分数含义建议：
-8–10：对专业读者有明显启发，可指导实际工作。
-6–7：有一定技术增量但深度一般。
-4–5：概念正确但缺少实质细节。
-1–3：空洞或与工程实践无关。
-
-请严格按系统约定的 JSON 结构输出分数与理由。`,
-  },
-  {
-    id: "timely",
-    label: "时效与影响力优先",
-    hint: "适合新闻向订阅：新近、影响面广、一手视角加分。",
-    body: `采用 10 分制，偏重时效与影响：
-- 事件或观点是否新近，对行业/用户是否有广泛影响（权重大）
-- 是否有一手信息、独家视角或可核验的来源支撑
-- 重复报道、迟到综述或二手拼凑则扣分
-
-分数含义建议：
-8–10：高优先级跟进，可能改变读者决策或认知。
-6–7：有价值但不是窗口期必读。
-4–5：信息尚可但时效或独特性不足。
-1–3：过时或转载堆砌。
-
-请严格按系统约定的 JSON 结构输出分数与理由。`,
-  },
-];
-
-const rubricPresetId = ref<string>("custom");
-
-const rubricHint = computed(() => {
-  const p = RUBRIC_PRESETS.find((x) => x.id === rubricPresetId.value);
-  return p?.hint ?? "可直接编辑评分说明。模型按 10 分制输出分数，再结合「精选阈值」决定是否入选 Digest。";
+const rssCategories = computed(() => {
+  const cats = new Set(rssLibrary.value.map((r) => r.category));
+  return Array.from(cats);
 });
+
+const filteredRss = computed(() => {
+  return rssLibrary.value.filter((r) => {
+    if (rssCategoryFilter.value && r.category !== rssCategoryFilter.value) return false;
+    if (rssFilter.value) {
+      const q = rssFilter.value.toLowerCase();
+      return r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q);
+    }
+    return true;
+  });
+});
+
+async function loadRssLibrary() {
+  try {
+    const data = await api.rssLibrary();
+    rssLibrary.value = data.items;
+  } catch {
+    // ignore — will retry on next open
+  }
+}
+
+function onRssSelect(seed: RssSeedItem) {
+  rssSelectedUrl.value = seed.url;
+  newSource.value.name = seed.name;
+  newSource.value.type = seed.type;
+  newSource.value.url = seed.url;
+}
 
 type JobFormMode = "create" | "edit";
 
@@ -107,35 +91,18 @@ const jobModal = ref({
   schedule_cron: "0 8 * * *",
   enabled: true,
   feishu_webhook_url: "",
-  push_digest: false,
+  push_digest: true,
   analyze_limit: 50,
-  digest_top_n: 8,
-  score_threshold: 7,
+  digest_top_n: 10,
   keywordsText: "",
   keyword_prefilter: false,
   prompt_template: "",
   scoring_rubric: "",
   system_prompt: "",
-  llm_profile_id: "" as string,
+  userPrompt: "",
+  selectedRubricId: "balanced",
+  selectedTemplateId: "default",
 });
-
-function syncRubricPresetFromDraft(text: string) {
-  const t = text.trim();
-  const hit = RUBRIC_PRESETS.find((p) => p.body.trim() === t);
-  rubricPresetId.value = hit ? hit.id : "custom";
-}
-
-function onRubricPresetChange(id: string) {
-  rubricPresetId.value = id;
-  if (id === "custom") return;
-  const p = RUBRIC_PRESETS.find((x) => x.id === id);
-  if (p) jobModal.value.scoring_rubric = p.body;
-}
-
-function onRubricPresetSelect(ev: Event) {
-  const el = ev.target as HTMLSelectElement;
-  onRubricPresetChange(el.value);
-}
 
 function populateJobModalFromJob(j: PipelineJob) {
   jobModal.value = {
@@ -146,15 +113,15 @@ function populateJobModalFromJob(j: PipelineJob) {
     push_digest: j.push_digest,
     analyze_limit: j.analyze_limit,
     digest_top_n: j.digest_top_n,
-    score_threshold: j.score_threshold,
     keywordsText: j.interest_keywords?.length ? j.interest_keywords.join("\n") : "",
     keyword_prefilter: j.keyword_prefilter,
     prompt_template: j.prompt_template || "",
     scoring_rubric: j.scoring_rubric || "",
     system_prompt: j.system_prompt || "",
-    llm_profile_id: j.llm_profile_id != null ? String(j.llm_profile_id) : "",
+    userPrompt: j.system_prompt || "",
+    selectedRubricId: "balanced",
+    selectedTemplateId: "default",
   };
-  syncRubricPresetFromDraft(j.scoring_rubric || "");
 }
 
 function openCreateJobModal() {
@@ -164,18 +131,18 @@ function openCreateJobModal() {
     schedule_cron: "0 8 * * *",
     enabled: true,
     feishu_webhook_url: "",
-    push_digest: false,
+    push_digest: true,
     analyze_limit: 50,
-    digest_top_n: 8,
-    score_threshold: 7,
+    digest_top_n: 10,
     keywordsText: "",
     keyword_prefilter: false,
     prompt_template: "",
-    scoring_rubric: RUBRIC_PRESETS[0].body,
+    scoring_rubric: "",
     system_prompt: "",
-    llm_profile_id: "",
+    userPrompt: "",
+    selectedRubricId: "balanced",
+    selectedTemplateId: "default",
   };
-  rubricPresetId.value = "balanced";
   jobFormDialog.value?.showModal();
 }
 
@@ -202,6 +169,11 @@ async function submitJobModal() {
     return;
   }
 
+  // 组合最终提示词：系统模板 + 用户需求
+  const finalPrompt = m.userPrompt?.trim()
+    ? `${m.prompt_template}\n\n用户补充需求：${m.userPrompt.trim()}`
+    : m.prompt_template || null;
+
   const base: Record<string, unknown> = {
     name: m.name.trim(),
     schedule_cron: m.schedule_cron.trim(),
@@ -209,13 +181,11 @@ async function submitJobModal() {
     analyze_limit: m.analyze_limit,
     digest_top_n: m.digest_top_n,
     push_digest: m.push_digest,
-    score_threshold: m.score_threshold,
     interest_keywords: kws,
     keyword_prefilter: m.keyword_prefilter,
-    prompt_template: m.prompt_template || null,
+    prompt_template: finalPrompt,
     scoring_rubric: m.scoring_rubric || null,
-    system_prompt: m.system_prompt || null,
-    llm_profile_id: m.llm_profile_id === "" ? null : Number(m.llm_profile_id),
+    system_prompt: m.userPrompt?.trim() || null,
   };
 
   try {
@@ -256,12 +226,6 @@ function onJobEnabledInput(j: PipelineJob, ev: Event) {
 
 const profileDraft = ref<Record<number, {
   model: string;
-  score_threshold: number;
-  prompt_template: string;
-  system_prompt: string;
-  category_hints_text: string;
-  temperature: number;
-  max_tokens: number;
 }>>({});
 
 const selectedJob = computed(() => jobs.value.find((j) => j.id === selectedJobId.value) ?? null);
@@ -297,12 +261,6 @@ async function refresh() {
     for (const p of profiles.value) {
       profileDraft.value[p.id] = {
         model: p.model,
-        score_threshold: p.score_threshold,
-        prompt_template: p.prompt_template || "",
-        system_prompt: p.system_prompt || "",
-        category_hints_text: p.category_hints.join("\n"),
-        temperature: p.temperature,
-        max_tokens: p.max_tokens,
       };
     }
     if (selectedJobId.value) {
@@ -317,7 +275,10 @@ async function refresh() {
   }
 }
 
-onMounted(refresh);
+onMounted(() => {
+  refresh();
+  loadRssLibrary();
+});
 
 watch(selectedJobId, async (id) => {
   if (id == null) {
@@ -343,12 +304,16 @@ watch(
   { deep: true }
 );
 
-watch(
-  () => jobModal.value.scoring_rubric,
-  (text) => {
-    syncRubricPresetFromDraft(text || "");
+async function onImportCsv() {
+  try {
+    const res = await api.rssLibraryReload();
+    message.value = `源库已刷新，共 ${res.count} 个源`;
+    error.value = "";
+    await loadRssLibrary();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
   }
-);
+}
 
 async function removeJob() {
   const id = selectedJobId.value;
@@ -365,12 +330,15 @@ async function removeJob() {
 }
 
 async function runCurrentJob() {
-  runMsg.value = "";
   const id = selectedJobId.value;
   const job = selectedJob.value;
-  if (id == null || job == null || jobRunning.value) return;
-  jobRunning.value = true;
+  if (id == null || job == null) return;
+  if (jobRunning.value) {
+    runMsg.value = "⚠️ 任务正在运行中，请等待完成后再试";
+    return;
+  }
   runMsg.value = "任务运行中，请稍候…";
+  isSubmittingRun.value = true;
   try {
     const wantPush = Boolean(job.push_digest);
     const params: {
@@ -415,7 +383,7 @@ async function runCurrentJob() {
   } catch (e) {
     runMsg.value = e instanceof Error ? e.message : String(e);
   } finally {
-    jobRunning.value = false;
+    isSubmittingRun.value = false;
   }
 }
 
@@ -428,6 +396,9 @@ function openSourceDialog() {
     analyze_limit: null,
   };
   testMsg.value = "";
+  rssSelectedUrl.value = "";
+  rssFilter.value = "";
+  rssCategoryFilter.value = "";
   sourceDialog.value?.showModal();
 }
 
@@ -494,23 +465,19 @@ async function saveProfile(p: Profile) {
   const d = profileDraft.value[p.id];
   if (!d) return;
   const key = profileKey.value[p.id];
-  const hints = d.category_hints_text
-    .split(/[\n,，]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
   const body: Record<string, unknown> = {
     model: d.model,
-    score_threshold: d.score_threshold,
-    prompt_template: d.prompt_template || null,
-    system_prompt: d.system_prompt || null,
-    category_hints: hints,
-    temperature: d.temperature,
-    max_tokens: d.max_tokens,
   };
   if (key) body.api_key = key;
-  await api.updateProfile(p.id, body);
-  profileKey.value[p.id] = "";
-  profiles.value = await api.profiles();
+  try {
+    await api.updateProfile(p.id, body);
+    profileKey.value[p.id] = "";
+    profiles.value = await api.profiles();
+    message.value = "已保存模型配置";
+    error.value = "";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  }
 }
 
 async function onSourceAnalyzeLimitChange(s: Source, ev: Event) {
@@ -567,6 +534,10 @@ function runStatusClass(status: string) {
           定时任务
         </button>
         <button type="button" class="nav-btn" :class="{ on: section === 'llm' }" @click="section = 'llm'">模型与密钥</button>
+        <hr class="nav-divider" />
+        <button type="button" class="nav-btn nav-btn-secondary" @click="onImportCsv">
+          导入 CSV 更新源库
+        </button>
       </nav>
 
       <div class="content">
@@ -576,7 +547,7 @@ function runStatusClass(status: string) {
               <div class="pipeline-intro-text">
                 <h2>定时任务</h2>
                 <p class="muted small row-sub">
-                  左侧选择任务；启用状态用滑块切换。任务名称、Cron、飞书 Webhook、阈值与评分等在「新建任务 / 修改任务」表单中配置。
+                  左侧选择任务；启用状态用滑块切换。任务名称、Cron、飞书 Webhook、抓取配置与提示词等在「新建任务 / 修改任务」表单中配置。
                 </p>
               </div>
               <button type="button" class="btn btn-primary pipeline-new-btn" @click="openCreateJobModal">
@@ -647,10 +618,6 @@ function runStatusClass(status: string) {
                           <code class="cron-code">{{ selectedJob.schedule_cron }}</code>
                           <span class="muted small cron-summary-hint">（分 时 日 月 周）</span>
                         </dd>
-                      </div>
-                      <div class="summary-row">
-                        <dt>精选阈值</dt>
-                        <dd>≥ {{ selectedJob.score_threshold }} / 10</dd>
                       </div>
                       <div v-if="selectedJob.feishu_webhook_url?.trim()" class="summary-row">
                         <dt>飞书 Webhook</dt>
@@ -778,57 +745,22 @@ function runStatusClass(status: string) {
           <section v-else-if="section === 'llm'" key="llm" class="card stack">
             <h2>模型与密钥</h2>
             <p class="muted small llm-intro">
-              此处配置<strong>调用哪家模型、API Key、温度与长度</strong>等连接参数。「写什么、如何打分」请在<strong>定时任务</strong>中按任务设置；
-              <strong>默认精选阈值</strong>亦可被任务侧覆盖。
-              下方「兜底提示词」仅在任务未填写自己的模板时使用。
+              配置模型和 API Key。评分、提示词等在定时任务中设置。
             </p>
             <div v-for="p in profiles" :key="p.id" class="prof-block">
-              <p>
-                <strong>{{ p.name }}</strong>
-                <span v-if="p.is_default" class="tag">默认</span>
-              </p>
+              <p><strong>{{ p.name }}</strong></p>
               <template v-if="profileDraft[p.id]">
                 <div class="form-grid">
-                  <div>
+                  <div class="full">
                     <label class="label">模型 model</label>
                     <input v-model="profileDraft[p.id].model" class="input" placeholder="例如 gpt-4o-mini" />
                   </div>
-                  <div>
-                    <label class="label">temperature</label>
-                    <input v-model.number="profileDraft[p.id].temperature" type="number" step="0.1" class="input" />
-                  </div>
-                  <div>
-                    <label class="label">max_tokens</label>
-                    <input v-model.number="profileDraft[p.id].max_tokens" type="number" class="input" />
-                  </div>
-                  <div>
-                    <label class="label">默认精选阈值（1–10）</label>
-                    <input v-model.number="profileDraft[p.id].score_threshold" type="number" class="input" min="1" max="10" />
-                  </div>
                   <div class="full">
-                    <label class="label">分类提示（每行一个）</label>
-                    <p class="muted small field-hint">示例：<code>人工智能</code>、<code>产品发布</code> —— 帮助模型归类。</p>
-                    <textarea v-model="profileDraft[p.id].category_hints_text" class="textarea" rows="3" />
-                  </div>
-                  <details class="adv-details">
-                    <summary>高级：全局兜底提示词（可选）</summary>
-                    <p class="muted small">
-                      多数用户只需在定时任务里配置提示词；这里用于「任务留空时」的退路。
-                    </p>
-                    <div class="full">
-                      <label class="label">prompt_template</label>
-                      <textarea v-model="profileDraft[p.id].prompt_template" class="textarea" rows="8" />
-                    </div>
-                    <div class="full">
-                      <label class="label">system_prompt</label>
-                      <textarea v-model="profileDraft[p.id].system_prompt" class="textarea" rows="3" />
-                    </div>
-                  </details>
-                  <div class="full">
+                    <label class="label">API Key</label>
                     <input v-model="profileKey[p.id]" class="input" type="password" placeholder="更新 API Key（可选）" />
                   </div>
                   <div class="full">
-                    <button type="button" class="btn" @click="saveProfile(p)">保存 Profile</button>
+                    <button type="button" class="btn" @click="saveProfile(p)">保存</button>
                   </div>
                 </div>
               </template>
@@ -862,21 +794,12 @@ function runStatusClass(status: string) {
         />
         <div class="cron-help muted small">
           <p class="cron-help-lead">
-            标准 <strong>五段</strong>格式，字段之间用空格分隔：
-            <code class="cron-code">分</code>
-            <code class="cron-code">时</code>
-            <code class="cron-code">日</code>
-            <code class="cron-code">月</code>
-            <code class="cron-code">周</code>
+            五段格式：<code class="cron-code">分 时 日 月 周</code>
           </p>
-          <ul class="cron-examples">
-            <li><code>0 8 * * *</code> — 每天 08:00（北京时间，与系统时区一致）</li>
-            <li><code>0 9,18 * * 1-5</code> — 周一至周五 09:00 与 18:00</li>
-            <li><code>30 7 * * *</code> — 每天 07:30</li>
-            <li><code>*/15 * * * *</code> — 每 15 分钟（慎用，频率过高）</li>
-          </ul>
-          <p class="cron-help-note">
-            <code>*</code> 表示任意；<code>1-5</code> 表示范围；<code>9,18</code> 表示多个取值；<code>*/N</code> 表示每隔 N。
+          <p class="cron-examples">
+            <code>0 8 * * *</code> 每天8点 ·
+            <code>0 9,18 * * 1-5</code> 工作日9/18点 ·
+            <code>*/15 * * * *</code> 每15分钟
           </p>
         </div>
 
@@ -893,42 +816,32 @@ function runStatusClass(status: string) {
           "
         />
 
-        <div class="modal-field-row modal-field-row-tight">
-          <label class="label tight-label">精选阈值（1–10）</label>
-          <input v-model.number="jobModal.score_threshold" type="number" min="1" max="10" class="input thr-input" />
-        </div>
-        <p class="muted small thr-hint">模型输出分数 ≥ 此值的条目视为精选并优先进入 Digest。</p>
+        <!-- 评分侧重点（只读预览） -->
+        <ScoringRubricPreview
+          v-model="jobModal.selectedRubricId"
+          @update:body="(body: string) => { jobModal.scoring_rubric = body; }"
+        />
 
-        <label class="label">评分侧重点</label>
-        <div class="select-wrap">
-          <select class="select" :value="rubricPresetId" @change="onRubricPresetSelect($event)">
-            <option v-for="p in RUBRIC_PRESETS" :key="p.id" :value="p.id">{{ p.label }}</option>
-            <option value="custom">完全自定义</option>
-          </select>
-        </div>
-        <p class="muted small field-hint">{{ rubricHint }}</p>
-        <label class="label subtle-top">评分说明（写入提示词，可编辑）</label>
-        <textarea v-model="jobModal.scoring_rubric" class="textarea" rows="8" />
-
-        <details class="adv-details modal-details">
-          <summary>抓取与 Digest（可选）</summary>
+        <!-- 抓取与 Digest（必填） -->
+        <div class="modal-section">
+          <label class="label">抓取与 Digest <span class="req">*</span></label>
           <label class="label">每轮最多分析条数（0=不限制）</label>
-          <input v-model.number="jobModal.analyze_limit" type="number" class="input" min="0" />
+          <input v-model.number="jobModal.analyze_limit" type="number" class="input stepper-input" min="0" step="10" />
           <label class="label">每轮推送篇数（Top N）</label>
-          <input v-model.number="jobModal.digest_top_n" type="number" class="input" min="1" />
+          <input v-model.number="jobModal.digest_top_n" type="number" class="input stepper-input" min="1" step="1" />
           <p class="muted small field-hint">
-            每轮从<strong>未推送</strong>的精选文章中按评分从高到低取 N 篇推送；已推送过的不会重复发送。
+            从未推送的精选文章中按评分取 Top N 推送。
           </p>
           <label class="chk-inline">
             <input v-model="jobModal.push_digest" type="checkbox" /> 运行结束后推送 Digest 到上述飞书 Webhook
           </label>
-        </details>
+        </div>
 
+        <!-- 关键词与预过滤（可选） -->
         <details class="adv-details modal-details">
           <summary>关键词与预过滤（可选）</summary>
           <p class="muted small">
-            开启「预过滤」后：系统会先检查标题和摘要里是否出现你在下方配置的关键词。<strong>没有任何关键词命中时，不会调用大模型</strong>（直接跳过），适合只想精读某一主题、同时节省模型费用的场景。
-            若关闭预过滤，关键词仍会写入提示词作为参考，但所有抓取到的条目都会参与分析。
+            开启预过滤后，未命中关键词的文章将跳过 LLM 分析，节省费用。
           </p>
           <label class="chk-inline">
             <input v-model="jobModal.keyword_prefilter" type="checkbox" /> 启用关键词预过滤（未命中则跳过分析）
@@ -937,23 +850,11 @@ function runStatusClass(status: string) {
           <textarea v-model="jobModal.keywordsText" class="textarea" rows="4" placeholder="示例：大模型（每行一条）" />
         </details>
 
-        <details class="adv-details modal-details">
-          <summary>模型 Profile（可选）</summary>
-          <div class="select-wrap">
-            <select v-model="jobModal.llm_profile_id" class="select">
-              <option value="">默认 Profile</option>
-              <option v-for="p in profiles" :key="p.id" :value="String(p.id)">{{ p.name }}</option>
-            </select>
-          </div>
-        </details>
-
-        <details class="adv-details modal-details">
-          <summary>高级提示词（可选）</summary>
-          <label class="label">分析提示词模板</label>
-          <textarea v-model="jobModal.prompt_template" class="textarea" rows="5" placeholder="留空则使用「模型与密钥」全局兜底" />
-          <label class="label">系统提示</label>
-          <textarea v-model="jobModal.system_prompt" class="textarea" rows="3" placeholder="可选；约束输出格式等" />
-        </details>
+        <!-- 提示词配置 -->
+        <PromptTemplateSelector
+          v-model:system-template="jobModal.prompt_template"
+          v-model:user-prompt="jobModal.userPrompt"
+        />
 
         <div class="dlg-actions">
           <button type="button" class="btn btn-primary" @click="submitJobModal">
@@ -964,31 +865,59 @@ function runStatusClass(status: string) {
       </div>
     </dialog>
 
-    <dialog ref="sourceDialog" class="dlg ui-motion">
-      <div class="dlg-inner">
+    <dialog ref="sourceDialog" class="dlg dlg-source ui-motion">
+      <div class="dlg-inner dlg-source-inner">
         <h3>添加订阅源</h3>
-        <input v-model="newSource.name" class="input" placeholder="名称" />
-        <select v-model="newSource.type" class="select">
-          <option value="rss">rss</option>
-          <option value="json_feed">json_feed</option>
-          <option value="html_list">html_list</option>
-          <option value="browser_session">browser_session</option>
-        </select>
-        <input v-model="newSource.url" class="input" placeholder="URL" />
-        <label class="label">每源最多分析（可选）</label>
-        <input
-          v-model.number="newSource.analyze_limit"
-          type="number"
-          class="input"
-          min="1"
-          max="50000"
-          placeholder="留空则仅受任务级上限约束"
-        />
-        <textarea v-model="newSource.config_json" class="textarea" placeholder="config_json" />
-        <p v-if="testMsg" class="muted small">{{ testMsg }}</p>
+
+        <div class="rss-lib-section">
+          <label class="label">选择订阅源</label>
+          <div class="rss-filter-row">
+            <select v-model="rssCategoryFilter" class="select rss-cat-select">
+              <option value="">全部类别</option>
+              <option v-for="cat in rssCategories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+            <input v-model="rssFilter" class="input" placeholder="搜索…" />
+          </div>
+          <div class="rss-list">
+            <button
+              v-for="r in filteredRss"
+              :key="r.url"
+              type="button"
+              class="rss-item"
+              :class="{ selected: rssSelectedUrl === r.url }"
+              :title="r.desc"
+              @click="onRssSelect(r)"
+            >
+              <span class="rss-item-name">{{ r.name }}</span>
+              <span class="rss-item-meta">{{ r.freq }} · {{ r.priority }}</span>
+            </button>
+            <p v-if="!filteredRss.length" class="muted small">无匹配项</p>
+          </div>
+        </div>
+
+        <template v-if="rssSelectedUrl">
+          <div class="rss-selected-info">
+            <p><strong>{{ newSource.name }}</strong></p>
+            <p class="muted small">{{ newSource.url }}</p>
+          </div>
+          <label class="label">每源最多分析</label>
+          <div class="stepper-row">
+            <input
+              v-model.number="newSource.analyze_limit"
+              type="number"
+              class="input stepper-input"
+              min="0"
+              max="50000"
+              placeholder="继承任务"
+            />
+            <span class="muted small">留空则继承任务级上限</span>
+          </div>
+          <p v-if="testMsg" class="muted small">{{ testMsg }}</p>
+        </template>
+
         <div class="dlg-actions">
-          <button type="button" class="btn btn-secondary" @click="testNewSource">测试抓取</button>
-          <button type="button" class="btn" @click="addSource">添加</button>
+          <button v-if="rssSelectedUrl" type="button" class="btn btn-secondary" @click="testNewSource">测试抓取</button>
+          <button type="button" class="btn" :disabled="!rssSelectedUrl" @click="addSource">添加</button>
           <button type="button" class="btn btn-secondary" @click="sourceDialog?.close()">取消</button>
         </div>
       </div>
@@ -1290,19 +1219,11 @@ function runStatusClass(status: string) {
   margin: 0 2px;
 }
 .cron-examples {
-  margin: 0 0 8px;
-  padding-left: 1.1rem;
-}
-.cron-examples li {
-  margin: 4px 0;
+  margin: 0;
 }
 .cron-examples code {
   font-family: ui-monospace, monospace;
   font-size: 0.82rem;
-}
-.cron-help-note {
-  margin: 0;
-  font-size: 0.8rem;
 }
 .cron-input {
   font-family: ui-monospace, monospace;
@@ -1564,6 +1485,11 @@ function runStatusClass(status: string) {
 .modal-field-row .thr-input {
   margin: 0;
 }
+.modal-section {
+  width: 100%;
+  padding: 12px 0;
+  border-top: 1px dashed var(--border);
+}
 .dlg {
   border: none;
   border-radius: var(--radius-card);
@@ -1592,5 +1518,91 @@ function runStatusClass(status: string) {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+.dlg-source {
+  max-width: 520px;
+}
+.dlg-source-inner {
+  max-height: min(90vh, 680px);
+  overflow-y: auto;
+}
+.rss-lib-section {
+  padding: 10px 0;
+}
+.rss-filter-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.rss-cat-select {
+  max-width: 140px;
+  flex-shrink: 0;
+}
+.rss-list {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+.rss-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s;
+}
+.rss-item:hover {
+  background: var(--surface);
+}
+.rss-item-name {
+  font-weight: 500;
+}
+.rss-item-meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.rss-item.selected {
+  border-color: #6366f1;
+  background: #f5f3ff;
+}
+.rss-selected-info {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  margin: 8px 0;
+}
+.rss-selected-info p {
+  margin: 2px 0;
+}
+.stepper-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stepper-input {
+  max-width: 140px;
+}
+.nav-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+.nav-btn-secondary {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.nav-btn-secondary:hover {
+  color: var(--text);
 }
 </style>

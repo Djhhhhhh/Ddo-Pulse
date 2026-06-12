@@ -117,6 +117,17 @@ export interface Settings {
   feishu_webhook_masked: string;
 }
 
+export interface RssSeedItem {
+  category: string;
+  name: string;
+  type: string;
+  url: string;
+  site: string;
+  freq: string;
+  desc: string;
+  priority: string;
+}
+
 export interface PipelineJob {
   id: number;
   name: string;
@@ -225,6 +236,10 @@ export const api = {
   },
   reloadScheduler: () =>
     request<void>("/pipeline-jobs/reload-scheduler", { method: "POST" }),
+  rssLibrary: () =>
+    request<{ items: RssSeedItem[] }>("/rss-library"),
+  rssLibraryReload: () =>
+    request<{ count: number }>("/rss-library/reload", { method: "POST" }),
   runOnce: (body: object) =>
     request<{ ok: boolean; stats: Record<string, unknown> }>("/jobs/run-once", {
       method: "POST",

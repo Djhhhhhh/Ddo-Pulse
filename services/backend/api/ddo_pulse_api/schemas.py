@@ -239,6 +239,21 @@ class RunOnceRequest(BaseModel):
     skip_push: bool = True
 
 
+class RssSeedItem(BaseModel):
+    category: str
+    name: str
+    type: str = "rss"
+    url: str
+    site: str = ""
+    freq: str = ""
+    desc: str = ""
+    priority: str = ""
+
+
+class RssSeedList(BaseModel):
+    items: list[RssSeedItem]
+
+
 class JobStatsOut(BaseModel):
     ok: bool
     stats: dict

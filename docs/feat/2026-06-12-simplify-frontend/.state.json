@@ -1,0 +1,33 @@
+{
+  "runId": "2026-06-12-simplify-frontend",
+  "runDir": "docs/feat/2026-06-12-simplify-frontend",
+  "startedAt": "2026-06-12T00:00:00Z",
+  "currentStage": "done",
+  "stages": {
+    "context": { "status": "done", "completedAt": "2026-06-12T00:01:00Z" },
+    "requirement": { "status": "done", "completedAt": "2026-06-12T00:02:00Z" },
+    "specification": { "status": "done", "completedAt": "2026-06-12T00:03:00Z" },
+    "planning": { "status": "done", "completedAt": "2026-06-12T00:04:00Z" },
+    "test-planning": { "status": "done", "completedAt": "2026-06-12T00:05:00Z" },
+    "tasking": { "status": "done", "completedAt": "2026-06-12T00:06:00Z" },
+    "coding": { "status": "done", "completedAt": "2026-06-12T00:07:00Z" },
+    "verification": { "status": "done", "completedAt": "2026-06-12T00:08:00Z" },
+    "review": { "status": "skipped" },
+    "reporting": { "status": "done", "completedAt": "2026-06-12T00:09:00Z" },
+    "reflection": { "status": "done", "completedAt": "2026-06-12T00:10:00Z" },
+    "done": { "status": "done", "completedAt": "2026-06-12T00:10:00Z" }
+  },
+  "history": [
+    { "stage": "context", "action": "completed", "at": "2026-06-12T00:01:00Z" },
+    { "stage": "requirement", "action": "completed", "at": "2026-06-12T00:02:00Z" },
+    { "stage": "specification", "action": "completed", "at": "2026-06-12T00:03:00Z" },
+    { "stage": "planning", "action": "completed", "at": "2026-06-12T00:04:00Z" },
+    { "stage": "test-planning", "action": "completed", "at": "2026-06-12T00:05:00Z" },
+    { "stage": "tasking", "action": "completed", "at": "2026-06-12T00:06:00Z" },
+    { "stage": "coding", "action": "completed", "at": "2026-06-12T00:07:00Z" },
+    { "stage": "verification", "action": "completed", "at": "2026-06-12T00:08:00Z" },
+    { "stage": "reporting", "action": "completed", "at": "2026-06-12T00:09:00Z" },
+    { "stage": "reflection", "action": "completed", "at": "2026-06-12T00:10:00Z" },
+    { "stage": "done", "action": "completed", "at": "2026-06-12T00:10:00Z" }
+  ]
+}

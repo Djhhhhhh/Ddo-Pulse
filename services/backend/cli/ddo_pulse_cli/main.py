@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import signal
@@ -70,11 +71,13 @@ config_app = typer.Typer(help="Manage configuration")
 profile_app = typer.Typer(help="Manage LLM profiles (OpenRouter)")
 items_app = typer.Typer(help="Browse analyzed articles")
 digest_app = typer.Typer(help="Daily digest and Feishu push")
+seed_app = typer.Typer(help="Seed library management (CSV → sources)")
 app.add_typer(source_app, name="source")
 app.add_typer(config_app, name="config")
 app.add_typer(profile_app, name="profile")
 app.add_typer(items_app, name="items")
 app.add_typer(digest_app, name="digest")
+app.add_typer(seed_app, name="seed")
 
 
 def _get_db() -> Database:
@@ -342,6 +345,143 @@ def config_export(
     db.close()
     out = export_config(path or get_config_path(), sources=sources)
     typer.echo(f"Exported to {out}")
+
+
+# ---------------------------------------------------------------------------
+# Seed library import
+# ---------------------------------------------------------------------------
+
+_CSV_COLUMN_MAP = {
+    "源名称": "name",
+    "源类型": "category",
+    "rss_url": "rss_url",
+    "官网链接": "homepage",
+    "简介": "description",
+    "接入优先级": "priority",
+    "推荐的LLM分析profile": "profile",
+    "是否需要网页正文提取": "need_extract",
+}
+
+
+@seed_app.command("import")
+def seed_import(
+    path: Path = typer.Option(
+        Path("docs/ddo_pulse_rss_seed_library.csv"),
+        "--path",
+        "-p",
+        help="CSV file path",
+    ),
+    job: int = typer.Option(
+        0, "--job", help="Pipeline job id (default: first job)"
+    ),
+    clear: bool = typer.Option(
+        False,
+        "--clear",
+        help="Delete all existing sources before import (full replace)",
+    ),
+) -> None:
+    """Import sources from seed library CSV. Full replace with --clear."""
+    if not path.exists():
+        typer.echo(f"CSV not found: {path}", err=True)
+        raise typer.Exit(1)
+
+    db = _get_db()
+    job_id = _resolve_pipeline_job_id(db, job)
+    if job_id is None:
+        typer.echo(
+            "还没有定时任务。请先在 Web「配置」中新建任务，或使用 API POST /pipeline-jobs。",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if clear:
+        deleted = db.delete_all_sources(job_id)
+        typer.echo(f"Cleared {deleted} existing source(s)")
+
+    # Parse CSV
+    rows: list[dict[str, str]] = []
+    with open(path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            rss_url = (row.get("rss_url") or "").strip()
+            if not rss_url:
+                continue  # Skip rows without RSS URL
+            rows.append(row)
+
+    if not rows:
+        typer.echo("No valid rows (all rss_url empty).", err=True)
+        db.close()
+        raise typer.Exit(1)
+
+    created = 0
+    updated = 0
+    for row in rows:
+        name = (row.get("源名称") or "").strip()
+        rss_url = (row.get("rss_url") or "").strip()
+        need_extract = (row.get("是否需要网页正文提取") or "").strip()
+
+        # Build config_json with metadata from CSV
+        cfg: dict[str, Any] = {}
+        if row.get("官网链接"):
+            cfg["homepage"] = row["官网链接"].strip()
+        if row.get("简介"):
+            cfg["description"] = row["简介"].strip()
+        if row.get("接入优先级"):
+            cfg["priority"] = row["接入优先级"].strip()
+        if row.get("推荐的LLM分析profile"):
+            cfg["profile"] = row["推荐的LLM分析profile"].strip()
+        if need_extract:
+            cfg["need_extract"] = need_extract == "是"
+
+        source_type = "rss"
+        _, is_new = db.upsert_source_by_url(
+            job_id=job_id,
+            name=name,
+            type_=source_type,
+            url=rss_url,
+            config_json=json.dumps(cfg, ensure_ascii=False),
+            enabled=True,
+        )
+        if is_new:
+            created += 1
+        else:
+            updated += 1
+
+    db.close()
+    typer.echo(
+        f"Seed import done: {created} new, {updated} updated, "
+        f"{len(rows)} total from {path.name}"
+    )
+
+
+@seed_app.command("list")
+def seed_list(
+    path: Path = typer.Option(
+        Path("docs/ddo_pulse_rss_seed_library.csv"),
+        "--path",
+        "-p",
+        help="CSV file path",
+    ),
+) -> None:
+    """Show seed library contents (CSV preview)."""
+    if not path.exists():
+        typer.echo(f"CSV not found: {path}", err=True)
+        raise typer.Exit(1)
+
+    with open(path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        total = 0
+        with_rss = 0
+        for row in reader:
+            total += 1
+            rss = (row.get("rss_url") or "").strip()
+            if rss:
+                with_rss += 1
+
+    typer.echo(f"Seed library: {path}")
+    typer.echo(f"  Total rows:  {total}")
+    typer.echo(f"  With RSS:    {with_rss}")
+    typer.echo(f"  Without RSS: {total - with_rss}")
 
 
 @profile_app.command("add")

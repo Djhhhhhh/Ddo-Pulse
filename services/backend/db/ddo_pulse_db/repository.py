@@ -124,6 +124,62 @@ class Database:
         self.conn.commit()
         return cur.rowcount > 0
 
+    def delete_all_sources(self, job_id: int | None = None) -> int:
+        """Delete all sources (optionally scoped to a job). Returns count deleted."""
+        if job_id is not None:
+            cur = self.conn.execute(
+                "DELETE FROM sources WHERE job_id = ?", (job_id,)
+            )
+        else:
+            cur = self.conn.execute("DELETE FROM sources")
+        self.conn.commit()
+        return cur.rowcount
+
+    def get_source_by_url(self, url: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM sources WHERE url = ?", (url,)
+        ).fetchone()
+
+    def upsert_source_by_url(
+        self,
+        job_id: int,
+        name: str,
+        type_: str,
+        url: str,
+        config_json: str = "{}",
+        enabled: bool = True,
+    ) -> tuple[int, bool]:
+        """Insert or update a source by URL. Returns (source_id, is_new)."""
+        existing = self.get_source_by_url(url)
+        if existing:
+            self.conn.execute(
+                """
+                UPDATE sources
+                SET job_id = ?, name = ?, type = ?, config_json = ?, enabled = ?
+                WHERE id = ?
+                """,
+                (
+                    job_id,
+                    name,
+                    type_,
+                    config_json,
+                    1 if enabled else 0,
+                    existing["id"],
+                ),
+            )
+            self.conn.commit()
+            return int(existing["id"]), False
+        else:
+            cur = self.conn.execute(
+                """
+                INSERT INTO sources (job_id, name, type, url, config_json, enabled, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (job_id, name, type_, url, config_json, 1 if enabled else 0, storage_now_iso()),
+            )
+            self.conn.commit()
+            return int(cur.lastrowid), True
+
     def set_source_enabled(self, source_id: int, enabled: bool) -> bool:
         cur = self.conn.execute(
             "UPDATE sources SET enabled = ? WHERE id = ?",

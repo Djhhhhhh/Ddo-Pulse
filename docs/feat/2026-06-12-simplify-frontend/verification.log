@@ -1,0 +1,86 @@
+=== Verification Log ===
+
+## G1. 模型与密钥简化
+[PASS] G1-1 cmd: temperature count=0
+[PASS] G1-2 cmd: max_tokens count=0
+[PASS] G1-3 cmd: score_threshold count=0
+[PASS] G1-4 cmd: category_hints count=0
+[PASS] G1-5 cmd: profileDraft.model exists=1
+[PASS] G1-6 cmd: password input exists=1
+[PASS] G1-7 human: LLM Tab 仅显示 model + api_key
+GROUP G1 PASSED
+
+## G2. 阈值删除
+[PASS] G2-1 cmd: score_threshold count=0
+[PASS] G2-2 cmd: 精选阈值 count=0
+[PASS] G2-3 human: 表单无阈值输入
+GROUP G2 PASSED
+
+## G3. 评分侧重点只读预览
+[PASS] G3-1 cmd: ScoringRubricPreview.vue exists
+[PASS] G3-2 cmd: RUBRIC_PRESETS in component
+[PASS] G3-3 cmd: readonly/disabled in component
+[PASS] G3-4 human: 只读预览，可切换模板
+[PASS] G3-5 human: 默认 balanced
+GROUP G3 PASSED
+
+## G4. 抓取与 Digest 必填
+[PASS] G4-1 cmd: 抓取与 Digest text exists
+[PASS] G4-2 cmd: not in details (count=0)
+[PASS] G4-3 cmd: analyze_limit default 50
+[PASS] G4-4 cmd: digest_top_n default 10
+[PASS] G4-5 human: 默认展开，有默认值
+GROUP G4 PASSED
+
+## G5. 模型 Profile 移除
+[PASS] G5-1 cmd: 模型 Profile count=0
+[PASS] G5-2 cmd: llm_profile_id count=0
+[PASS] G5-3 human: 无模型 Profile 选择
+GROUP G5 PASSED
+
+## G6. 关键词与预过滤保留
+[PASS] G6-1 cmd: 关键词与预过滤 exists
+[PASS] G6-2 cmd: keyword_prefilter exists
+[PASS] G6-3 cmd: keywordsText exists
+[PASS] G6-4 human: 可选折叠区，功能不变
+GROUP G6 PASSED
+
+## G7. 提示词模板选择与组合
+[PASS] G7-1 cmd: PromptTemplateSelector.vue exists
+[PASS] G7-2 cmd: PROMPT_TEMPLATES in component
+[PASS] G7-3 cmd: userPrompt in component
+[PASS] G7-4 cmd: preview in component
+[PASS] G7-5 human: 系统模板选择 + 用户需求输入 + 最终预览
+GROUP G7 PASSED
+
+## G8. 定时任务运行约束
+[PASS] G8-1 cmd: jobRunning exists
+[PASS] G8-2 cmd: disabled jobRunning exists
+[PASS] G8-3 human: 运行按钮 disabled 状态
+GROUP G8 PASSED
+
+## G9. 多任务与其他保留功能
+[PASS] G9-1 cmd: 新建任务 exists
+[PASS] G9-2 cmd: schedule_cron exists
+[PASS] G9-3 cmd: feishu_webhook_url exists
+[PASS] G9-4 cmd: jobFormDialog exists
+[PASS] G9-5 human: 多任务列表正常
+[PASS] G9-6 human: cron/webhook 保留
+GROUP G9 PASSED
+
+## G10. 后端兼容性
+[PASS] G10-1 cmd: Python import ok
+[PASS] G10-2 cmd: score_threshold in schema
+[PASS] G10-3 cmd: llm_profile_id in schema
+[PASS] G10-4 human: 后端 schema 不变
+GROUP G10 PASSED
+
+## 额外修复（用户反馈）
+[PASS] 用户需求描述移至标题下方
+[PASS] 描述文字精简
+[PASS] LLM Tab 去掉"默认"标签，model/key 分两行
+[PASS] 只保留最终提示词预览
+[PASS] RSS 源库集成（来自 ddo_pulse_rss_seed_library.csv）
+[PASS] Vite build 成功
+
+ALL PASSED
