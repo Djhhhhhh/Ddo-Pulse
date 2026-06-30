@@ -13,7 +13,6 @@ from ddo_pulse_db.repository import Database
 def _source_row_to_dict(row: Any) -> dict[str, Any]:
     return {
         "id": row["id"],
-        "job_id": row["job_id"],
         "name": row["name"],
         "type": row["type"],
         "url": row["url"],

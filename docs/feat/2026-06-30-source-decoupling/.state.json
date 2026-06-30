@@ -1,0 +1,38 @@
+{
+  "runId": "2026-06-30-source-decoupling",
+  "runDir": "docs/feat/2026-06-30-source-decoupling",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Pulse-feat-2026-06-30-source-decoupling",
+  "type": "feat",
+  "dateDescription": "2026-06-30-source-decoupling",
+  "createdAt": "2026-06-30T19:10:00Z",
+  "userRequirement": "需求如下：\n1. 检查一下现在的获取信息源的保存形式和刷新形式，我期望的逻辑如下：用户项目本地docs目录下自己手动维护一个信息源表格，前端提供个按钮支持全量覆盖信息源信息\n2. 需要注意一个逻辑，信息源和定时任务要解耦开，不要存在如果一个信息源信息如果被我删掉了，对应的定时任务就没执行了\n3. 对于同一个定时任务，我期望可以特别设定每个需要获取信息源特别关注哪些信息",
+  "currentStage": "done",
+  "stages": {
+    "context": { "status": "done", "completedAt": "2026-06-30T19:12:00Z" },
+    "requirement": { "status": "done", "completedAt": "2026-06-30T19:13:00Z" },
+    "specification": { "status": "done", "completedAt": "2026-06-30T19:16:00Z" },
+    "planning": { "status": "done", "completedAt": "2026-06-30T19:18:00Z" },
+    "test-planning": { "status": "done", "completedAt": "2026-06-30T19:20:00Z" },
+    "tasking": { "status": "done", "completedAt": "2026-06-30T19:22:00Z" },
+    "coding": { "status": "done", "completedAt": "2026-06-30T19:30:00Z" },
+    "verification": { "status": "done", "completedAt": "2026-06-30T19:35:00Z" },
+    "reporting": { "status": "done", "completedAt": "2026-06-30T19:40:00Z" },
+    "reflection": { "status": "done", "completedAt": "2026-06-30T19:42:00Z" },
+    "done": { "status": "done", "completedAt": "2026-06-30T19:42:00Z" }
+  },
+  "history": [
+    { "event": "created", "at": "2026-06-30T19:10:00Z" },
+    { "event": "context-completed", "at": "2026-06-30T19:12:00Z" },
+    { "event": "requirement-completed", "at": "2026-06-30T19:13:00Z" },
+    { "event": "git-worktree-completed", "at": "2026-06-30T19:15:00Z" },
+    { "event": "spec-approved", "at": "2026-06-30T19:16:00Z" },
+    { "event": "plan-approved", "at": "2026-06-30T19:18:00Z" },
+    { "event": "test-plan-approved", "at": "2026-06-30T19:20:00Z" },
+    { "event": "tasking-completed", "at": "2026-06-30T19:22:00Z" },
+    { "event": "coding-completed", "at": "2026-06-30T19:30:00Z" },
+    { "event": "verification-passed", "at": "2026-06-30T19:35:00Z" },
+    { "event": "reporting-completed", "at": "2026-06-30T19:40:00Z" },
+    { "event": "reflection-approved", "at": "2026-06-30T19:42:00Z" },
+    { "event": "done", "at": "2026-06-30T19:42:00Z" }
+  ]
+}

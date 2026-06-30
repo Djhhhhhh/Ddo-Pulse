@@ -1,0 +1,59 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "DB Schema 变更",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "数据迁移脚本",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "Repository 层适配",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-04",
+      "file": "task-04.md",
+      "title": "CSV 全量覆盖同步 API",
+      "dependsOn": ["task-03"]
+    },
+    {
+      "id": "task-05",
+      "file": "task-05.md",
+      "title": "Pipeline 执行适配",
+      "dependsOn": ["task-03"]
+    },
+    {
+      "id": "task-06",
+      "file": "task-06.md",
+      "title": "API 端点补全",
+      "dependsOn": ["task-03"]
+    },
+    {
+      "id": "task-07",
+      "file": "task-07.md",
+      "title": "前端 CSV 同步按钮",
+      "dependsOn": ["task-04"]
+    },
+    {
+      "id": "task-08",
+      "file": "task-08.md",
+      "title": "前端 Per-Source 关注点配置 UI",
+      "dependsOn": ["task-06"]
+    }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02", "task-03"],
+    ["task-04", "task-05", "task-06"],
+    ["task-07", "task-08"]
+  ]
+}

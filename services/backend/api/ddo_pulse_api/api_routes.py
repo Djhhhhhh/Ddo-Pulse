@@ -42,6 +42,10 @@ from ddo_pulse_api.schemas import (
     SourceTestFetchOut,
     SourceTestFetchRequest,
     SourceUpdate,
+    SyncFromCsvResult,
+    JobSourceCreate,
+    JobSourceOut,
+    JobSourceUpdate,
     WebConfigOut,
 )
 from ddo_pulse_api.scheduler import (
@@ -120,7 +124,6 @@ def _source_from_row(row) -> SourceOut:
     cj = row["config_json"] or "{}"
     return SourceOut(
         id=int(row["id"]),
-        job_id=int(row["job_id"]),
         name=row["name"],
         type=row["type"],
         url=row["url"],
@@ -490,9 +493,8 @@ def mark_article_unread(
 @router.get("/sources", response_model=list[SourceOut])
 def list_sources(
     db: Annotated[Database, Depends(get_db)],
-    job_id: int | None = None,
 ) -> list[SourceOut]:
-    return [_source_from_row(r) for r in db.list_sources(job_id=job_id)]
+    return [_source_from_row(r) for r in db.list_sources()]
 
 
 @router.post("/sources/test-fetch", response_model=SourceTestFetchOut)
@@ -510,14 +512,11 @@ def test_source_fetch(body: SourceTestFetchRequest) -> SourceTestFetchOut:
 def create_source(
     body: SourceCreate, db: Annotated[Database, Depends(get_db)]
 ) -> SourceOut:
-    if not db.get_pipeline_job(body.job_id):
-        raise HTTPException(404, "Pipeline job not found")
     cj = body.config_json if body.config_json else "{}"
     patch = body.model_dump(exclude_unset=True)
     if "analyze_limit" in patch:
         cj = _apply_analyze_limit_to_config_json(cj, patch["analyze_limit"])
     sid = db.add_source(
-        job_id=body.job_id,
         name=body.name,
         type_=body.type,
         url=body.url,
@@ -538,8 +537,6 @@ def update_source(
     row = db.get_source(source_id)
     if not row:
         raise HTTPException(404, "Source not found")
-    if body.job_id is not None and not db.get_pipeline_job(body.job_id):
-        raise HTTPException(404, "Pipeline job not found")
     patch = body.model_dump(exclude_unset=True)
     cj_out = row["config_json"] or "{}"
     if "config_json" in patch:
@@ -549,7 +546,6 @@ def update_source(
     cfg_touch = "config_json" in patch or "analyze_limit" in patch
     ok = db.update_source(
         source_id,
-        job_id=patch.get("job_id"),
         name=patch.get("name"),
         type_=patch.get("type"),
         url=patch.get("url"),
@@ -569,6 +565,178 @@ def delete_source(
 ) -> None:
     if not db.delete_source(source_id):
         raise HTTPException(404, "Source not found")
+
+
+# ---- CSV sync ----
+
+_CSV_TYPE_MAP = {
+    "rss": "rss",
+    "atom": "rss",
+    "json_feed": "json_feed",
+    "json feed": "json_feed",
+    "html_list": "html_list",
+    "html": "html_list",
+    "网页": "html_list",
+    "browser_session": "browser_session",
+    "浏览器": "browser_session",
+}
+
+
+def _map_csv_type(raw: str) -> str:
+    low = raw.strip().lower()
+    for key, val in _CSV_TYPE_MAP.items():
+        if key in low:
+            return val
+    return "rss"
+
+
+@router.post("/sources/sync-from-csv", response_model=SyncFromCsvResult)
+def sync_sources_from_csv(
+    db: Annotated[Database, Depends(get_db)],
+) -> SyncFromCsvResult:
+    import csv
+    from pathlib import Path
+
+    csv_path = Path(__file__).resolve().parents[4] / "docs" / "ddo_pulse_rss_seed_library.csv"
+    if not csv_path.exists():
+        raise HTTPException(400, f"CSV file not found: {csv_path}")
+
+    added = 0
+    updated = 0
+    skipped = 0
+    total = 0
+
+    with open(csv_path, encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            total += 1
+            url = (row.get("rss_url") or "").strip()
+            if not url:
+                skipped += 1
+                continue
+            name = (row.get("源名称") or "").strip()
+            raw_type = (row.get("源类型") or "").strip()
+            type_ = _map_csv_type(raw_type)
+            if not name:
+                skipped += 1
+                continue
+            _, is_new = db.upsert_source_by_url(
+                name=name,
+                type_=type_,
+                url=url,
+            )
+            if is_new:
+                added += 1
+            else:
+                updated += 1
+
+    return SyncFromCsvResult(added=added, updated=updated, skipped=skipped, total=total)
+
+
+# ---- job_sources (association) ----
+
+
+def _job_source_from_row(row) -> JobSourceOut:
+    return JobSourceOut(
+        job_source_id=int(row["job_source_id"]),
+        job_id=int(row["job_id"]),
+        source_id=int(row["source_id"]),
+        name=row["name"],
+        type=row["type"],
+        url=row["url"],
+        config_json=row["config_json"] or "{}",
+        source_enabled=bool(row["source_enabled"]),
+        focus_config_json=row["focus_config_json"] or "{}",
+        job_source_enabled=bool(row["job_source_enabled"]),
+    )
+
+
+@router.get("/pipeline-jobs/{job_id}/sources", response_model=list[JobSourceOut])
+def list_job_sources(
+    job_id: int, db: Annotated[Database, Depends(get_db)]
+) -> list[JobSourceOut]:
+    if not db.get_pipeline_job(job_id):
+        raise HTTPException(404, "Pipeline job not found")
+    return [_job_source_from_row(r) for r in db.list_job_sources(job_id)]
+
+
+@router.post("/pipeline-jobs/{job_id}/sources", response_model=JobSourceOut, status_code=201)
+def add_job_source(
+    job_id: int,
+    body: JobSourceCreate,
+    db: Annotated[Database, Depends(get_db)],
+) -> JobSourceOut:
+    if not db.get_pipeline_job(job_id):
+        raise HTTPException(404, "Pipeline job not found")
+    if not db.get_source(body.source_id):
+        raise HTTPException(404, "Source not found")
+    existing = db.get_job_source(job_id, body.source_id)
+    if existing:
+        raise HTTPException(409, "Source already associated with this job")
+    db.add_job_source(
+        job_id=job_id,
+        source_id=body.source_id,
+        focus_config_json=body.focus_config_json,
+        enabled=body.enabled,
+    )
+    row = db.get_job_source(job_id, body.source_id)
+    assert row is not None
+    # Build a combined row for _job_source_from_row
+    src = db.get_source(body.source_id)
+    combined = {
+        "job_source_id": row["id"],
+        "job_id": row["job_id"],
+        "source_id": row["source_id"],
+        "focus_config_json": row["focus_config_json"],
+        "job_source_enabled": row["enabled"],
+        "name": src["name"],
+        "type": src["type"],
+        "url": src["url"],
+        "config_json": src["config_json"],
+        "source_enabled": src["enabled"],
+    }
+    return _job_source_from_row(combined)
+
+
+@router.patch("/pipeline-jobs/{job_id}/sources/{source_id}", response_model=JobSourceOut)
+def update_job_source(
+    job_id: int,
+    source_id: int,
+    body: JobSourceUpdate,
+    db: Annotated[Database, Depends(get_db)],
+) -> JobSourceOut:
+    js = db.get_job_source(job_id, source_id)
+    if not js:
+        raise HTTPException(404, "Job-source association not found")
+    if body.focus_config_json is not None:
+        db.update_job_source_focus(job_id, source_id, body.focus_config_json)
+    if body.enabled is not None:
+        db.set_job_source_enabled(job_id, source_id, body.enabled)
+    js = db.get_job_source(job_id, source_id)
+    src = db.get_source(source_id)
+    combined = {
+        "job_source_id": js["id"],
+        "job_id": js["job_id"],
+        "source_id": js["source_id"],
+        "focus_config_json": js["focus_config_json"],
+        "job_source_enabled": js["enabled"],
+        "name": src["name"],
+        "type": src["type"],
+        "url": src["url"],
+        "config_json": src["config_json"],
+        "source_enabled": src["enabled"],
+    }
+    return _job_source_from_row(combined)
+
+
+@router.delete("/pipeline-jobs/{job_id}/sources/{source_id}", status_code=204)
+def remove_job_source(
+    job_id: int,
+    source_id: int,
+    db: Annotated[Database, Depends(get_db)],
+) -> None:
+    if not db.remove_job_source(job_id, source_id):
+        raise HTTPException(404, "Job-source association not found")
 
 
 @router.get("/profiles", response_model=list[ProfileOut])

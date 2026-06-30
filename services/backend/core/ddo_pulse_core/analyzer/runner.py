@@ -112,12 +112,14 @@ def analyze_job_sources(
     keyword_prefilter: bool = False,
     interest_keywords: list[str] | None = None,
     source_analyze_cap: dict[int, int | None] | None = None,
+    per_source_interest_keywords: dict[int, list[str]] | None = None,
 ) -> dict[str, int | str | None]:
     """
     Analyze pending items for enabled sources of one job.
 
     *limit*: global max raw rows to dequeue this run (None = unlimited).
     *source_analyze_cap*: optional per-source_id max rows (None value = no extra cap).
+    *per_source_interest_keywords*: optional per-source_id keyword overrides.
     """
     merged: dict[str, int | str | None] = {
         "pending": 0,
@@ -138,6 +140,10 @@ def analyze_job_sources(
         take: int | None = remaining
         if cap is not None:
             take = cap if take is None else min(int(take), int(cap))
+        # Per-source keywords override job-level keywords
+        src_kws = interest_keywords
+        if per_source_interest_keywords and sid in per_source_interest_keywords:
+            src_kws = per_source_interest_keywords[sid]
         chunk = db.list_unanalyzed_raw_items(limit=take, source_ids=[sid])
         astats = analyze_pending_chunk(
             db,
@@ -145,7 +151,7 @@ def analyze_job_sources(
             effective_profile=effective_profile,
             profile_id=profile_id,
             keyword_prefilter=keyword_prefilter,
-            interest_keywords=interest_keywords,
+            interest_keywords=src_kws,
         )
         _merge_analyze_stats(merged, astats)
         if remaining is not None:

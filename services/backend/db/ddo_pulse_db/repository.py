@@ -27,6 +27,7 @@ class Database:
             self._conn = connect(self.db_path)
             self._migrate_pipeline_jobs_feishu_webhook()
             self._migrate_analyzed_items_push_read()
+            self._migrate_sources_to_global()
         return self._conn
 
     def _migrate_analyzed_items_push_read(self) -> None:
@@ -60,6 +61,66 @@ class Database:
         )
         self._conn.commit()
 
+    def _migrate_sources_to_global(self) -> None:
+        """Migrate sources from child-of-job to global entity with job_sources association."""
+        tbl = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sources'"
+        ).fetchone()
+        if tbl is None:
+            return
+        rows = self._conn.execute("PRAGMA table_info(sources)").fetchall()
+        names = {str(r[1]) for r in rows}
+        if "job_id" not in names:
+            return  # already migrated
+
+        # Create job_sources table if not exists
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS job_sources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+                source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                focus_config_json TEXT NOT NULL DEFAULT '{}',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                UNIQUE(job_id, source_id)
+            )
+        """)
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_job_sources_job_id ON job_sources(job_id)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_job_sources_source_id ON job_sources(source_id)"
+        )
+
+        # Migrate existing job_id associations to job_sources
+        self._conn.execute("""
+            INSERT OR IGNORE INTO job_sources (job_id, source_id, focus_config_json, enabled, created_at)
+            SELECT job_id, id, '{}', enabled, created_at FROM sources WHERE job_id IS NOT NULL
+        """)
+
+        # Recreate sources table without job_id and with UNIQUE(url)
+        self._conn.execute("""
+            CREATE TABLE sources_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                url TEXT NOT NULL UNIQUE,
+                config_json TEXT DEFAULT '{}',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            )
+        """)
+        self._conn.execute("""
+            INSERT INTO sources_new (id, name, type, url, config_json, enabled, created_at)
+            SELECT id, name, type, url, config_json, enabled, created_at FROM sources
+        """)
+        self._conn.execute("DROP TABLE sources")
+        self._conn.execute("ALTER TABLE sources_new RENAME TO sources")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sources_enabled ON sources(enabled)"
+        )
+        self._conn.commit()
+
     def close(self) -> None:
         if self._conn is not None:
             self._conn.close()
@@ -73,7 +134,6 @@ class Database:
 
     def add_source(
         self,
-        job_id: int,
         name: str,
         type_: str,
         url: str,
@@ -82,11 +142,10 @@ class Database:
     ) -> int:
         cur = self.conn.execute(
             """
-            INSERT INTO sources (job_id, name, type, url, config_json, enabled, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sources (name, type, url, config_json, enabled, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
-                job_id,
                 name,
                 type_,
                 url,
@@ -99,15 +158,12 @@ class Database:
         return int(cur.lastrowid)
 
     def list_sources(
-        self, enabled_only: bool = False, job_id: int | None = None
+        self, enabled_only: bool = False
     ) -> list[sqlite3.Row]:
         clauses: list[str] = []
         params: list[Any] = []
         if enabled_only:
             clauses.append("enabled = 1")
-        if job_id is not None:
-            clauses.append("job_id = ?")
-            params.append(job_id)
         where = " AND ".join(clauses) if clauses else "1=1"
         rows = self.conn.execute(
             f"SELECT * FROM sources WHERE {where} ORDER BY id", params
@@ -124,14 +180,9 @@ class Database:
         self.conn.commit()
         return cur.rowcount > 0
 
-    def delete_all_sources(self, job_id: int | None = None) -> int:
-        """Delete all sources (optionally scoped to a job). Returns count deleted."""
-        if job_id is not None:
-            cur = self.conn.execute(
-                "DELETE FROM sources WHERE job_id = ?", (job_id,)
-            )
-        else:
-            cur = self.conn.execute("DELETE FROM sources")
+    def delete_all_sources(self) -> int:
+        """Delete all sources. Returns count deleted."""
+        cur = self.conn.execute("DELETE FROM sources")
         self.conn.commit()
         return cur.rowcount
 
@@ -142,7 +193,6 @@ class Database:
 
     def upsert_source_by_url(
         self,
-        job_id: int,
         name: str,
         type_: str,
         url: str,
@@ -155,11 +205,10 @@ class Database:
             self.conn.execute(
                 """
                 UPDATE sources
-                SET job_id = ?, name = ?, type = ?, config_json = ?, enabled = ?
+                SET name = ?, type = ?, config_json = ?, enabled = ?
                 WHERE id = ?
                 """,
                 (
-                    job_id,
                     name,
                     type_,
                     config_json,
@@ -172,10 +221,10 @@ class Database:
         else:
             cur = self.conn.execute(
                 """
-                INSERT INTO sources (job_id, name, type, url, config_json, enabled, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO sources (name, type, url, config_json, enabled, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (job_id, name, type_, url, config_json, 1 if enabled else 0, storage_now_iso()),
+                (name, type_, url, config_json, 1 if enabled else 0, storage_now_iso()),
             )
             self.conn.commit()
             return int(cur.lastrowid), True
@@ -192,7 +241,6 @@ class Database:
         self,
         source_id: int,
         *,
-        job_id: int | None = None,
         name: str | None = None,
         type_: str | None = None,
         url: str | None = None,
@@ -205,11 +253,10 @@ class Database:
         self.conn.execute(
             """
             UPDATE sources
-            SET job_id = ?, name = ?, type = ?, url = ?, config_json = ?, enabled = ?
+            SET name = ?, type = ?, url = ?, config_json = ?, enabled = ?
             WHERE id = ?
             """,
             (
-                job_id if job_id is not None else row["job_id"],
                 name if name is not None else row["name"],
                 type_ if type_ is not None else row["type"],
                 url if url is not None else row["url"],
@@ -999,7 +1046,6 @@ class Database:
 
     def import_sources_from_yaml(self, sources: list[dict[str, Any]]) -> int:
         count = 0
-        default_jid = self.get_first_pipeline_job_id()
         for s in sources:
             name = s.get("name")
             type_ = s.get("type")
@@ -1012,13 +1058,7 @@ class Database:
                 config_json = config
             else:
                 config_json = json.dumps(config, ensure_ascii=False)
-            job_id = (
-                int(s["job_id"]) if s.get("job_id") is not None else default_jid
-            )
-            if job_id is None:
-                continue
             self.add_source(
-                job_id=job_id,
                 name=str(name),
                 type_=str(type_),
                 url=str(url),
@@ -1028,12 +1068,78 @@ class Database:
             count += 1
         return count
 
-    def get_first_pipeline_job_id(self) -> int | None:
-        """First pipeline job id, or None if there are no jobs (no auto-insert)."""
-        row = self.conn.execute(
-            "SELECT id FROM pipeline_jobs ORDER BY id LIMIT 1"
+    # ---- job_sources (association table) ----
+
+    def add_job_source(
+        self,
+        job_id: int,
+        source_id: int,
+        focus_config_json: str = "{}",
+        enabled: bool = True,
+    ) -> int:
+        cur = self.conn.execute(
+            """
+            INSERT INTO job_sources (job_id, source_id, focus_config_json, enabled, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (job_id, source_id, focus_config_json, 1 if enabled else 0, storage_now_iso()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def remove_job_source(self, job_id: int, source_id: int) -> bool:
+        cur = self.conn.execute(
+            "DELETE FROM job_sources WHERE job_id = ? AND source_id = ?",
+            (job_id, source_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def get_job_source(self, job_id: int, source_id: int) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM job_sources WHERE job_id = ? AND source_id = ?",
+            (job_id, source_id),
         ).fetchone()
-        return int(row["id"]) if row else None
+
+    def list_job_sources(self, job_id: int) -> list[sqlite3.Row]:
+        """List sources associated with a job, including focus_config_json."""
+        return list(
+            self.conn.execute(
+                """
+                SELECT js.id AS job_source_id, js.job_id, js.source_id,
+                       js.focus_config_json, js.enabled AS job_source_enabled,
+                       s.name, s.type, s.url, s.config_json, s.enabled AS source_enabled
+                FROM job_sources js
+                JOIN sources s ON s.id = js.source_id
+                WHERE js.job_id = ?
+                ORDER BY s.id
+                """,
+                (job_id,),
+            ).fetchall()
+        )
+
+    def update_job_source_focus(
+        self, job_id: int, source_id: int, focus_config_json: str
+    ) -> bool:
+        cur = self.conn.execute(
+            """
+            UPDATE job_sources SET focus_config_json = ?
+            WHERE job_id = ? AND source_id = ?
+            """,
+            (focus_config_json, job_id, source_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def set_job_source_enabled(
+        self, job_id: int, source_id: int, enabled: bool
+    ) -> bool:
+        cur = self.conn.execute(
+            "UPDATE job_sources SET enabled = ? WHERE job_id = ? AND source_id = ?",
+            (1 if enabled else 0, job_id, source_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def list_pipeline_jobs(self) -> list[sqlite3.Row]:
         return list(

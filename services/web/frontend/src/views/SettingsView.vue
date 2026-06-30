@@ -3,10 +3,10 @@ import { computed, onMounted, ref, watch } from "vue";
 import {
   api,
   type JobRun,
+  type JobSource,
   type PipelineJob,
   type Profile,
   type RssSeedItem,
-  type Source,
 } from "../api/client";
 import ScoringRubricPreview from "../components/ScoringRubricPreview.vue";
 import PromptTemplateSelector from "../components/PromptTemplateSelector.vue";
@@ -19,7 +19,7 @@ const message = ref("");
 
 const jobs = ref<PipelineJob[]>([]);
 const selectedJobId = ref<number | null>(null);
-const sources = ref<Source[]>([]);
+const sources = ref<JobSource[]>([]);
 
 const profiles = ref<Profile[]>([]);
 
@@ -264,7 +264,7 @@ async function refresh() {
       };
     }
     if (selectedJobId.value) {
-      sources.value = await api.sources(selectedJobId.value);
+      sources.value = await api.listJobSources(selectedJobId.value);
       await loadJobRuns();
     } else {
       sources.value = [];
@@ -287,7 +287,7 @@ watch(selectedJobId, async (id) => {
     return;
   }
   try {
-    sources.value = await api.sources(id);
+    sources.value = await api.listJobSources(id);
     await loadJobRuns();
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -305,11 +305,15 @@ watch(
 );
 
 async function onImportCsv() {
+  if (!confirm("将用 CSV 文件内容全量替换信息源列表，是否继续？")) return;
   try {
-    const res = await api.rssLibraryReload();
-    message.value = `源库已刷新，共 ${res.count} 个源`;
+    const res = await api.syncSourcesFromCsv();
+    message.value = `全量覆盖完成：新增 ${res.added}，更新 ${res.updated}，跳过 ${res.skipped}`;
     error.value = "";
     await loadRssLibrary();
+    if (selectedJobId.value) {
+      sources.value = await api.listJobSources(selectedJobId.value);
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   }
@@ -421,7 +425,6 @@ async function addSource() {
   if (jid == null) return;
   try {
     const body: Record<string, unknown> = {
-      job_id: jid,
       name: newSource.value.name,
       type: newSource.value.type,
       url: newSource.value.url,
@@ -430,7 +433,9 @@ async function addSource() {
     };
     const cap = newSource.value.analyze_limit;
     if (cap != null && cap > 0) body.analyze_limit = cap;
-    await api.createSource(body);
+    const src = await api.createSource(body);
+    // Associate source with the selected job
+    await api.addJobSource(jid, { source_id: src.id });
     sourceDialog.value?.close();
     message.value = "已添加订阅源";
     await refresh();
@@ -439,26 +444,29 @@ async function addSource() {
   }
 }
 
-async function patchSourceEnabled(s: Source, enabled: boolean) {
+async function patchSourceEnabled(s: JobSource, enabled: boolean) {
   error.value = "";
   try {
-    await api.updateSource(s.id, { enabled });
-    if (selectedJobId.value) sources.value = await api.sources(selectedJobId.value);
+    if (selectedJobId.value) {
+      await api.updateJobSourceFocus(selectedJobId.value, s.source_id, { enabled });
+      sources.value = await api.listJobSources(selectedJobId.value);
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
     await refresh();
   }
 }
 
-function onSourceEnabledInput(s: Source, ev: Event) {
+function onSourceEnabledInput(s: JobSource, ev: Event) {
   const el = ev.target as HTMLInputElement;
   patchSourceEnabled(s, el.checked);
 }
 
-async function removeSource(id: number) {
-  if (!confirm("删除该订阅源？")) return;
-  await api.deleteSource(id);
-  if (selectedJobId.value) sources.value = await api.sources(selectedJobId.value);
+async function removeSource(sourceId: number) {
+  if (!confirm("从当前任务移除该订阅源？")) return;
+  if (!selectedJobId.value) return;
+  await api.removeJobSource(selectedJobId.value, sourceId);
+  if (selectedJobId.value) sources.value = await api.listJobSources(selectedJobId.value);
 }
 
 async function saveProfile(p: Profile) {
@@ -480,7 +488,17 @@ async function saveProfile(p: Profile) {
   }
 }
 
-async function onSourceAnalyzeLimitChange(s: Source, ev: Event) {
+function getFocusConfig(s: JobSource): Record<string, unknown> {
+  try { return JSON.parse(s.focus_config_json || "{}"); } catch { return {}; }
+}
+
+function getAnalyzeLimit(s: JobSource): number | null {
+  const cfg = getFocusConfig(s);
+  const v = cfg.analyze_limit;
+  return typeof v === "number" ? v : null;
+}
+
+async function onSourceAnalyzeLimitChange(s: JobSource, ev: Event) {
   const el = ev.target as HTMLInputElement;
   const raw = el.value.trim();
   let next: number | null;
@@ -489,16 +507,20 @@ async function onSourceAnalyzeLimitChange(s: Source, ev: Event) {
   } else {
     const n = Number(raw);
     if (!Number.isFinite(n)) {
-      el.value = s.analyze_limit != null ? String(s.analyze_limit) : "";
+      el.value = getAnalyzeLimit(s) != null ? String(getAnalyzeLimit(s)) : "";
       return;
     }
     next = Math.min(50000, Math.max(1, Math.floor(n)));
   }
-  const prev = s.analyze_limit ?? null;
+  const prev = getAnalyzeLimit(s);
   if (next === prev) return;
   error.value = "";
   try {
-    await api.updateSource(s.id, { analyze_limit: next });
+    const cfg = getFocusConfig(s);
+    cfg.analyze_limit = next;
+    if (selectedJobId.value) {
+      await api.updateJobSourceFocus(selectedJobId.value, s.source_id, { focus_config_json: JSON.stringify(cfg) });
+    }
     await refresh();
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -536,7 +558,7 @@ function runStatusClass(status: string) {
         <button type="button" class="nav-btn" :class="{ on: section === 'llm' }" @click="section = 'llm'">模型与密钥</button>
         <hr class="nav-divider" />
         <button type="button" class="nav-btn nav-btn-secondary" @click="onImportCsv">
-          导入 CSV 更新源库
+          全量覆盖信息源
         </button>
       </nav>
 
@@ -654,8 +676,8 @@ function runStatusClass(status: string) {
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="s in sources" :key="s.id">
-                          <td>{{ s.id }}</td>
+                        <tr v-for="s in sources" :key="s.source_id">
+                          <td>{{ s.source_id }}</td>
                           <td>{{ s.name }}</td>
                           <td>{{ s.type }}</td>
                           <td>
@@ -665,7 +687,7 @@ function runStatusClass(status: string) {
                               min="1"
                               max="50000"
                               placeholder="继承任务"
-                              :value="s.analyze_limit ?? ''"
+                              :value="getAnalyzeLimit(s) ?? ''"
                               :disabled="jobRunning"
                               @change="onSourceAnalyzeLimitChange(s, $event)"
                             />
@@ -676,7 +698,7 @@ function runStatusClass(status: string) {
                                 type="checkbox"
                                 role="switch"
                                 :aria-label="`${s.name} 启用订阅`"
-                                :checked="s.enabled"
+                                :checked="s.job_source_enabled"
                                 @change="onSourceEnabledInput(s, $event)"
                               />
                               <span class="toggle-track" aria-hidden="true" />
@@ -686,8 +708,8 @@ function runStatusClass(status: string) {
                             <button
                               type="button"
                               class="btn-src-delete"
-                              title="删除订阅源"
-                              @click="removeSource(s.id)"
+                              title="从任务移除订阅源"
+                              @click="removeSource(s.source_id)"
                             >
                               删除
                             </button>

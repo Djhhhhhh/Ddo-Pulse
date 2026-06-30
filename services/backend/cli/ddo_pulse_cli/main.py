@@ -334,7 +334,6 @@ def config_export(
     for r in rows:
         sources.append(
             {
-                "job_id": int(r["job_id"]),
                 "name": r["name"],
                 "type": r["type"],
                 "url": r["url"],
@@ -395,7 +394,7 @@ def seed_import(
         raise typer.Exit(1)
 
     if clear:
-        deleted = db.delete_all_sources(job_id)
+        deleted = db.delete_all_sources()
         typer.echo(f"Cleared {deleted} existing source(s)")
 
     # Parse CSV
@@ -434,14 +433,18 @@ def seed_import(
             cfg["need_extract"] = need_extract == "是"
 
         source_type = "rss"
-        _, is_new = db.upsert_source_by_url(
-            job_id=job_id,
+        sid, is_new = db.upsert_source_by_url(
             name=name,
             type_=source_type,
             url=rss_url,
             config_json=json.dumps(cfg, ensure_ascii=False),
             enabled=True,
         )
+        # Associate with the pipeline job
+        if job_id is not None:
+            existing_js = db.get_job_source(job_id, sid)
+            if not existing_js:
+                db.add_job_source(job_id=job_id, source_id=sid)
         if is_new:
             created += 1
         else:
@@ -614,8 +617,8 @@ def digest_build(
         typer.echo(f"Pipeline job {jid} not found.", err=True)
         db.close()
         raise typer.Exit(1)
-    sources = db.list_sources(enabled_only=False, job_id=jid)
-    source_ids = [int(s["id"]) for s in sources]
+    job_sources = db.list_job_sources(jid)
+    source_ids = [int(js["source_id"]) for js in job_sources]
     stats = build_and_push_digest(
         db,
         job_id=jid,
@@ -653,8 +656,8 @@ def digest_push(
         typer.echo(f"Pipeline job {jid} not found.", err=True)
         db.close()
         raise typer.Exit(1)
-    sources = db.list_sources(enabled_only=False, job_id=jid)
-    source_ids = [int(s["id"]) for s in sources]
+    job_sources = db.list_job_sources(jid)
+    source_ids = [int(js["source_id"]) for js in job_sources]
     stats = build_and_push_digest(
         db,
         job_id=jid,

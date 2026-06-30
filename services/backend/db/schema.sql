@@ -39,13 +39,22 @@ CREATE TABLE IF NOT EXISTS pipeline_jobs (
 
 CREATE TABLE IF NOT EXISTS sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id INTEGER NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     type TEXT NOT NULL,
-    url TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
     config_json TEXT DEFAULT '{}',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+    source_id INTEGER NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    focus_config_json TEXT NOT NULL DEFAULT '{}',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    UNIQUE(job_id, source_id)
 );
 
 CREATE TABLE IF NOT EXISTS raw_items (
@@ -110,6 +119,7 @@ CREATE TABLE IF NOT EXISTS job_runs (
 
 CREATE INDEX IF NOT EXISTS idx_raw_items_source_id ON raw_items(source_id);
 CREATE INDEX IF NOT EXISTS idx_sources_enabled ON sources(enabled);
-CREATE INDEX IF NOT EXISTS idx_sources_job_id ON sources(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_sources_job_id ON job_sources(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_sources_source_id ON job_sources(source_id);
 CREATE INDEX IF NOT EXISTS idx_job_runs_pipeline_job ON job_runs(pipeline_job_id);
 CREATE INDEX IF NOT EXISTS idx_digests_job_date ON digests(job_id, date);

@@ -88,7 +88,6 @@ export interface ArticleList {
 
 export interface Source {
   id: number;
-  job_id: number;
   name: string;
   type: string;
   url: string;
@@ -96,6 +95,19 @@ export interface Source {
   enabled: boolean;
   /** 每轮从该订阅源最多分析的未处理条数；未设置则仅受任务级上限约束 */
   analyze_limit?: number | null;
+}
+
+export interface JobSource {
+  job_source_id: number;
+  job_id: number;
+  source_id: number;
+  name: string;
+  type: string;
+  url: string;
+  config_json: string;
+  source_enabled: boolean;
+  focus_config_json: string;
+  job_source_enabled: boolean;
 }
 
 export interface Profile {
@@ -170,10 +182,12 @@ export const api = {
     request<void>(`/articles/${id}/read`, { method: "POST" }),
   markArticleUnread: (id: number) =>
     request<void>(`/articles/${id}/read`, { method: "DELETE" }),
-  sources: (jobId?: number) => {
-    const q = jobId != null ? `?job_id=${jobId}` : "";
-    return request<Source[]>(`/sources${q}`);
-  },
+  sources: () => request<Source[]>("/sources"),
+  syncSourcesFromCsv: () =>
+    request<{ added: number; updated: number; skipped: number; total: number }>(
+      "/sources/sync-from-csv",
+      { method: "POST" }
+    ),
   testSourceFetch: (body: object) =>
     request<{ count: number; sample: { title: string; url: string }[] }>(
       "/sources/test-fetch",
@@ -188,6 +202,23 @@ export const api = {
     }),
   deleteSource: (id: number) =>
     request<void>(`/sources/${id}`, { method: "DELETE" }),
+  // job_sources (association)
+  listJobSources: (jobId: number) =>
+    request<JobSource[]>(`/pipeline-jobs/${jobId}/sources`),
+  addJobSource: (jobId: number, body: { source_id: number; focus_config_json?: string }) =>
+    request<JobSource>(`/pipeline-jobs/${jobId}/sources`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateJobSourceFocus: (jobId: number, sourceId: number, body: object) =>
+    request<JobSource>(`/pipeline-jobs/${jobId}/sources/${sourceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  removeJobSource: (jobId: number, sourceId: number) =>
+    request<void>(`/pipeline-jobs/${jobId}/sources/${sourceId}`, {
+      method: "DELETE",
+    }),
   profiles: () => request<Profile[]>("/profiles"),
   updateProfile: (id: number, body: object) =>
     request<Profile>(`/profiles/${id}`, {
