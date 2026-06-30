@@ -191,12 +191,33 @@ def run_pipeline_job(
     }
 
     try:
-        sources = database.list_sources(enabled_only=True, job_id=job_id)
+        job_sources = database.list_job_sources(job_id)
+        # Convert job_sources rows to source-like rows for compatibility
+        sources = []
+        focus_configs: dict[int, dict] = {}
+        for js in job_sources:
+            sid = int(js["source_id"])
+            sources.append({
+                "id": sid,
+                "name": js["name"],
+                "type": js["type"],
+                "url": js["url"],
+                "config_json": js["config_json"],
+                "enabled": js["source_enabled"],
+            })
+            try:
+                fc = json.loads(js["focus_config_json"] or "{}")
+                if isinstance(fc, dict):
+                    focus_configs[sid] = fc
+            except (json.JSONDecodeError, TypeError):
+                focus_configs[sid] = {}
+
         source_ids = [int(s["id"]) for s in sources]
         stats["sources"] = len(sources)
         _fetch_sources(database, sources, stats)
 
         if analyze:
+            # Per-source focus config overrides job-level config
             lim_src = job["analyze_limit"]
             if analyze_limit_override is not None:
                 lim_src = analyze_limit_override
@@ -205,6 +226,21 @@ def run_pipeline_job(
             try:
                 eff, pid = build_effective_profile(database, job)
                 caps = _source_analyze_caps_from_rows(sources)
+                # Override caps with per-source focus config
+                for sid, fc in focus_configs.items():
+                    if "analyze_limit" in fc:
+                        try:
+                            al = int(fc["analyze_limit"])
+                            caps[sid] = al if al > 0 else None
+                        except (TypeError, ValueError):
+                            pass
+                # Per-source interest keywords override
+                per_source_interest: dict[int, list[str]] = {}
+                for sid, fc in focus_configs.items():
+                    kw = fc.get("interest_keywords")
+                    if isinstance(kw, list) and kw:
+                        per_source_interest[sid] = [str(k) for k in kw]
+
                 astats = analyze_job_sources(
                     database,
                     sources,
@@ -214,6 +250,7 @@ def run_pipeline_job(
                     keyword_prefilter=bool(job["keyword_prefilter"]),
                     interest_keywords=interest,
                     source_analyze_cap=caps,
+                    per_source_interest_keywords=per_source_interest if per_source_interest else None,
                 )
             except ValueError as exc:
                 astats = {

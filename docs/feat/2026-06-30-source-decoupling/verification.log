@@ -1,0 +1,17 @@
+[PASS] G1.1: sources table has no job_id column
+[PASS] G1.2: job_sources table exists
+[PASS] G1.3: sources.url has UNIQUE constraint
+[PASS] G1.4: job_sources has focus_config_json and composite unique constraint
+[PASS] G3.1: deleting source doesn't affect pipeline_job
+[PASS] G3.2: deleting pipeline_job doesn't affect source
+[PASS] G4: focus_config_json can store and retrieve per-source config
+[PASS] G7.1: pipeline.py queries job_sources
+[PASS] G7.2: pipeline.py reads focus_config_json
+GROUP G1 PASSED
+GROUP G2 SKIPPED (requires running server)
+GROUP G3 PASSED
+GROUP G4 PASSED
+GROUP G5 SKIPPED (human: frontend UI tests)
+GROUP G6 SKIPPED (human: frontend UI tests)
+GROUP G7 PASSED
+ALL PASSED

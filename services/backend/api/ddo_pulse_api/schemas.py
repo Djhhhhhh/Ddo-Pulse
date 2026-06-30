@@ -18,7 +18,6 @@ class WebConfigOut(BaseModel):
 
 class SourceOut(BaseModel):
     id: int
-    job_id: int
     name: str
     type: str
     url: str
@@ -28,7 +27,6 @@ class SourceOut(BaseModel):
 
 
 class SourceCreate(BaseModel):
-    job_id: int
     name: str
     type: str
     url: str
@@ -38,13 +36,43 @@ class SourceCreate(BaseModel):
 
 
 class SourceUpdate(BaseModel):
-    job_id: int | None = None
     name: str | None = None
     type: str | None = None
     url: str | None = None
     config_json: str | None = None
     enabled: bool | None = None
     analyze_limit: int | None = Field(default=None, ge=0, le=50000)
+
+
+class JobSourceOut(BaseModel):
+    job_source_id: int
+    job_id: int
+    source_id: int
+    name: str
+    type: str
+    url: str
+    config_json: str
+    source_enabled: bool
+    focus_config_json: str
+    job_source_enabled: bool
+
+
+class JobSourceCreate(BaseModel):
+    source_id: int
+    focus_config_json: str = "{}"
+    enabled: bool = True
+
+
+class JobSourceUpdate(BaseModel):
+    focus_config_json: str | None = None
+    enabled: bool | None = None
+
+
+class SyncFromCsvResult(BaseModel):
+    added: int
+    updated: int
+    skipped: int
+    total: int
 
 
 class SourceTestFetchRequest(BaseModel):
