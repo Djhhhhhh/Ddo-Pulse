@@ -101,6 +101,7 @@ export interface Source {
 export interface Profile {
   id: number;
   name: string;
+  base_url: string;
   model: string;
   is_default: boolean;
   score_threshold: number;

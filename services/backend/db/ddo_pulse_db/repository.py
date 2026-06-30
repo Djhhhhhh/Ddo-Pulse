@@ -533,6 +533,7 @@ class Database:
         *,
         api_key: str | None = None,
         model: str | None = None,
+        base_url: str | None = None,
         score_threshold: int | None = None,
         prompt_template: str | None = None,
         system_prompt: str | None = None,
@@ -552,7 +553,7 @@ class Database:
         self.conn.execute(
             """
             UPDATE llm_profiles
-            SET api_key = ?, model = ?, score_threshold = ?,
+            SET api_key = ?, model = ?, base_url = ?, score_threshold = ?,
                 prompt_template = ?, system_prompt = ?, category_hints = ?,
                 temperature = ?, max_tokens = ?
             WHERE id = ?
@@ -560,6 +561,7 @@ class Database:
             (
                 api_key if api_key is not None else row["api_key"],
                 model if model is not None else row["model"],
+                base_url if base_url is not None else row["base_url"],
                 score_threshold
                 if score_threshold is not None
                 else row["score_threshold"],

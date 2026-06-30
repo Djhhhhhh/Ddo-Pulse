@@ -1,80 +1,55 @@
-# Ddo-Pulse 快速启动脚本
+# Ddo-Pulse 脚本目录
 
-## 目录结构
+## 脚本清单
 
-```
-Ddo-Pulse/
-├── .env/                    # Python 虚拟环境
-├── scripts/
-│   ├── start.sh            # 快速启动脚本
-│   └── README.md           # 本文档
-└── ...
-```
+| 脚本 | 用途 |
+|------|------|
+| `install.sh` | 安装项目依赖（Python 虚拟环境 + 可选前端） |
+| `uninstall.sh` | 卸载项目（删除虚拟环境、node_modules、可选数据目录） |
+| `start.sh` | 启动前后端服务 |
 
 ## 快速开始
 
-### 1. 初始化项目
-
-首次使用时，需要初始化项目：
+### 1. 安装
 
 ```bash
-./scripts/start.sh install   # 安装依赖
-./scripts/start.sh cli init  # 初始化数据库和配置
+# 仅安装 Python 依赖
+./scripts/install.sh
+
+# 同时安装前端依赖
+./scripts/install.sh --with-frontend
 ```
 
-### 2. 启动服务
+### 2. 启动
 
 ```bash
-# 启动 API 服务
-./scripts/start.sh api
+# 同时启动前后端
+./scripts/start.sh
 
-# 运行 CLI 命令
-./scripts/start.sh cli --help
-./scripts/start.sh cli run-once
-./scripts/start.sh cli source list
+# 仅启动后端 API
+./scripts/start.sh --api-only
 
-# 启动 MCP 服务
-./scripts/start.sh mcp
+# 仅启动前端
+./scripts/start.sh --frontend-only
 ```
 
-## 使用 lazyctl 管理服务
-
-服务已注册到 lazyctl，可以使用 TUI 界面管理：
+### 3. 卸载
 
 ```bash
-lazyctl
+# 卸载（交互式确认是否删除数据）
+./scripts/uninstall.sh
+
+# 卸载但保留数据目录
+./scripts/uninstall.sh --keep-data
 ```
 
-在 lazyctl 中：
-- 按 `a` 添加新服务
-- 按 `s` 启动/停止选中的服务
-- 按 `r` 重启服务
-- 按 `d` 删除服务
-- 按 `enter` 查看服务详情
+## 端口配置
 
-### 已注册的服务
+默认端口：
+- API 服务: `http://localhost:8765`
+- 前端开发服务器: `http://localhost:5173`
 
-- **com.ddo-pulse.api**: Ddo-Pulse API 服务
-
-服务配置文件位置：`~/Library/LaunchAgents/com.ddo-pulse.api.plist`
-
-## 手动管理服务
-
-如果不使用 lazyctl，也可以手动管理：
-
-```bash
-# 启动服务
-launchctl load ~/Library/LaunchAgents/com.ddo-pulse.api.plist
-
-# 停止服务
-launchctl unload ~/Library/LaunchAgents/com.ddo-pulse.api.plist
-
-# 查看服务状态
-launchctl list | grep ddo-pulse
-
-# 查看日志
-log show --predicate 'process == "start.sh"' --last 1m
-```
+可以在 `~/.ddo_pulse/web.yaml` 中修改 API 端口配置。
 
 ## 配置文件
 
@@ -82,39 +57,18 @@ log show --predicate 'process == "start.sh"' --last 1m
 - **Web 配置**: `~/.ddo_pulse/web.yaml`
 - **数据库**: `~/.ddo_pulse/ddo_pulse.db`
 
-## 端口配置
-
-默认端口：
-- API 服务: `127.0.0.1:8765`
-- 前端开发服务器: `127.0.0.1:5173`
-
-可以在 `~/.ddo_pulse/web.yaml` 中修改端口配置。
-
 ## 故障排除
 
 ### 端口被占用
 
 ```bash
-# 查看占用端口的进程
 lsof -i :8765
-
-# 停止占用端口的进程
 kill -9 <PID>
 ```
 
-### 数据库错误
+### 重新安装
 
 ```bash
-# 重新初始化数据库
-./scripts/start.sh cli init
-```
-
-### 查看日志
-
-```bash
-# API 服务日志
-./scripts/start.sh api 2>&1 | tee api.log
-
-# launchd 服务日志
-log show --predicate 'process == "start.sh"' --last 5m
+./scripts/uninstall.sh --keep-data
+./scripts/install.sh --with-frontend
 ```

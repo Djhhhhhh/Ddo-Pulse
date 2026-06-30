@@ -1,0 +1,13 @@
+[2026-06-30T19:30:00+08:00] G1 cmd1: PASS - ProfileOut has base_url field
+[2026-06-30T19:30:00+08:00] G1 cmd2: PASS - ProfileUpdate accepts base_url
+[2026-06-30T19:30:00+08:00] G1 cmd3: PASS - ProfileUpdate base_url optional
+[2026-06-30T19:30:00+08:00] GROUP G1 PASSED
+[2026-06-30T19:30:01+08:00] G2 cmd1: PASS - update_llm_profile updates base_url
+[2026-06-30T19:30:01+08:00] GROUP G2 PASSED
+[2026-06-30T19:30:02+08:00] G3 cmd1: PASS - Profile interface has base_url
+[2026-06-30T19:30:02+08:00] GROUP G3 PASSED
+[2026-06-30T19:30:03+08:00] G4 human: PASS - 用户确认 UI 验证通过
+[2026-06-30T19:30:03+08:00] GROUP G4 PASSED
+[2026-06-30T19:30:03+08:00] G5 human: PASS - 用户确认端到端验证通过
+[2026-06-30T19:30:03+08:00] GROUP G5 PASSED
+[2026-06-30T19:30:04+08:00] ALL PASSED

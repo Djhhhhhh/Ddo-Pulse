@@ -225,6 +225,7 @@ function onJobEnabledInput(j: PipelineJob, ev: Event) {
 }
 
 const profileDraft = ref<Record<number, {
+  base_url: string;
   model: string;
 }>>({});
 
@@ -260,6 +261,7 @@ async function refresh() {
     profiles.value = await api.profiles();
     for (const p of profiles.value) {
       profileDraft.value[p.id] = {
+        base_url: p.base_url,
         model: p.model,
       };
     }
@@ -466,6 +468,7 @@ async function saveProfile(p: Profile) {
   if (!d) return;
   const key = profileKey.value[p.id];
   const body: Record<string, unknown> = {
+    base_url: d.base_url,
     model: d.model,
   };
   if (key) body.api_key = key;
@@ -751,6 +754,10 @@ function runStatusClass(status: string) {
               <p><strong>{{ p.name }}</strong></p>
               <template v-if="profileDraft[p.id]">
                 <div class="form-grid">
+                  <div class="full">
+                    <label class="label">Base URL</label>
+                    <input v-model="profileDraft[p.id].base_url" class="input" placeholder="https://openrouter.ai/api/v1" />
+                  </div>
                   <div class="full">
                     <label class="label">模型 model</label>
                     <input v-model="profileDraft[p.id].model" class="input" placeholder="例如 gpt-4o-mini" />

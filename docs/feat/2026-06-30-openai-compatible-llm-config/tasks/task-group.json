@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "后端 DB 层 — update_llm_profile 增加 base_url 参数",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "后端 API 层 — ProfileOut/ProfileUpdate/api_routes 增加 base_url",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "前端 API 类型 — Profile 接口增加 base_url",
+      "dependsOn": []
+    },
+    {
+      "id": "task-04",
+      "file": "task-04.md",
+      "title": "前端 UI — SettingsView.vue 增加 base_url 输入框",
+      "dependsOn": ["task-02", "task-03"]
+    }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02", "task-03"],
+    ["task-04"]
+  ]
+}

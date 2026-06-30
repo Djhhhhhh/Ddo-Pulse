@@ -143,6 +143,7 @@ def _profile_from_row(row) -> ProfileOut:
     return ProfileOut(
         id=int(row["id"]),
         name=row["name"],
+        base_url=row["base_url"] or "https://openrouter.ai/api/v1",
         model=row["model"],
         is_default=bool(row["is_default"]),
         score_threshold=int(row["score_threshold"]),
@@ -589,6 +590,7 @@ def update_profile(
         profile_id,
         api_key=body.api_key,
         model=body.model,
+        base_url=body.base_url,
         score_threshold=body.score_threshold,
         prompt_template=body.prompt_template,
         system_prompt=body.system_prompt,

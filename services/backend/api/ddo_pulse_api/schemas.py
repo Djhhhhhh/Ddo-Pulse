@@ -61,6 +61,7 @@ class SourceTestFetchOut(BaseModel):
 class ProfileOut(BaseModel):
     id: int
     name: str
+    base_url: str = "https://openrouter.ai/api/v1"
     model: str
     is_default: bool
     score_threshold: int
@@ -75,6 +76,7 @@ class ProfileOut(BaseModel):
 class ProfileUpdate(BaseModel):
     api_key: str | None = None
     model: str | None = None
+    base_url: str | None = None
     score_threshold: int | None = None
     is_default: bool | None = None
     prompt_template: str | None = None
