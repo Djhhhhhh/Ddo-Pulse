@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from ddo_pulse_core.web_config import load_web_config
@@ -49,8 +50,26 @@ def api_root() -> dict[str, str]:
 
 
 def _mount_frontend() -> None:
-    if _WEB_DIST.is_dir():
-        app.mount("/", StaticFiles(directory=_WEB_DIST, html=True), name="frontend")
+    if not _WEB_DIST.is_dir():
+        return
+
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request as StarletteRequest
+
+    _INDEX = _WEB_DIST / "index.html"
+
+    class SpaFallbackMiddleware(BaseHTTPMiddleware):
+        """SPA 兜底：静态文件 404 时返回 index.html"""
+
+        async def dispatch(self, request: StarletteRequest, call_next):
+            response = await call_next(request)
+            if response.status_code == 404 and not request.url.path.startswith("/api"):
+                if _INDEX.is_file():
+                    return FileResponse(_INDEX)
+            return response
+
+    app.add_middleware(SpaFallbackMiddleware)
+    app.mount("/", StaticFiles(directory=_WEB_DIST, html=True), name="frontend")
 
 
 _mount_frontend()

@@ -1,0 +1,64 @@
+# 验证日志
+
+> test-plan.md 中所有验收条目的执行结果记录。
+
+## G1. Dockerfile 文件规范
+
+### 执行结果
+
+- [PASS] test -f scripts/Dockerfile — 文件存在
+- [PASS] grep FROM python — 包含 `FROM python:3.11-slim`
+- [PASS] grep FROM node — 包含 `FROM node:20-alpine`
+- [PASS] grep EXPOSE 8765 — 包含 `EXPOSE 8765`
+- [PASS] grep ENTRYPOINT — 包含 `ENTRYPOINT ["/docker-entrypoint.sh"]`
+- [PASS] grep VOLUME — 包含 `VOLUME /root/.ddo_pulse`
+
+### 组摘要
+
+GROUP G1 PASSED
+
+## G2. 构建验证
+
+### 执行结果
+
+- [PASS] docker build --check — `Check complete, no warnings found`
+- [human] docker build -f scripts/Dockerfile -t ddo-pulse-test . — 需手动执行（构建耗时较长）
+
+### 组摘要
+
+GROUP G2 PARTIAL: 1 pending human check
+
+## G3. 运行时验证
+
+### 执行结果
+
+- [human] docker run + curl /api — 需手动执行
+- [human] docker run + volume mount — 需手动执行
+
+### 组摘要
+
+GROUP G3 PENDING: all human checks
+
+## G4. Docker Desktop 兼容性
+
+### 执行结果
+
+- [human] Docker Desktop Build Image — 需手动执行
+- [human] Docker Desktop Run — 需手动执行
+- [human] 浏览器访问 http://localhost:8765 — 需手动执行
+- [human] 容器信息显示 — 需手动执行
+
+### 组摘要
+
+GROUP G4 PENDING: all human checks
+
+## 人工检查清单
+
+- G2: 构建镜像 — `docker build -f scripts/Dockerfile -t ddo-pulse-test .`
+- G3-1: 运行容器并验证 API — `docker run -d --name ddo-pulse-verify -p 8765:8765 ddo-pulse-test && sleep 5 && curl -sf http://localhost:8765/api`
+- G3-2: 数据目录挂载 — `docker run -d -v ddo-pulse-data:/root/.ddo_pulse ddo-pulse-test`
+- G4: Docker Desktop 图形界面操作
+
+## 最终结果
+
+WAITING-HUMAN

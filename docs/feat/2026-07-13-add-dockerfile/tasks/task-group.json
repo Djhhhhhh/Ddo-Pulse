@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "创建 scripts/Dockerfile",
+      "dependsOn": []
+    }
+  ],
+  "parallelGroups": [
+    ["task-01"]
+  ]
+}
