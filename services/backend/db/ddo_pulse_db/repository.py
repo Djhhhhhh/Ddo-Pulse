@@ -175,6 +175,12 @@ class Database:
             "SELECT * FROM sources WHERE id = ?", (source_id,)
         ).fetchone()
 
+    def get_source_by_url(self, url: str) -> sqlite3.Row | None:
+        """通过 URL 查找源"""
+        return self.conn.execute(
+            "SELECT * FROM sources WHERE url = ?", (url,)
+        ).fetchone()
+
     def delete_source(self, source_id: int) -> bool:
         cur = self.conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))
         self.conn.commit()
@@ -873,7 +879,7 @@ class Database:
                     a.id, a.raw_item_id, a.is_quality, a.score,
                     a.categories_json, a.summary_zh, a.reason, a.analyzed_at,
                     a.pushed_at, a.read_at,
-                    r.title, r.url
+                    r.title, r.url, r.content_snippet
                 FROM analyzed_items a
                 INNER JOIN raw_items r ON r.id = a.raw_item_id
                 WHERE a.id IN ({placeholders})
@@ -909,7 +915,7 @@ class Database:
                     a.id, a.raw_item_id, a.is_quality, a.score,
                     a.categories_json, a.summary_zh, a.reason, a.analyzed_at,
                     a.pushed_at, a.read_at,
-                    r.title, r.url
+                    r.title, r.url, r.content_snippet
                 FROM analyzed_items a
                 INNER JOIN raw_items r ON r.id = a.raw_item_id
                 WHERE {clause}
@@ -1209,15 +1215,15 @@ class Database:
         self,
         job_id: int,
         *,
-        name: str | None = None,
-        schedule_cron: str | None = None,
-        enabled: bool | None = None,
-        analyze_limit: int | None = None,
-        digest_top_n: int | None = None,
-        push_digest: bool | None = None,
-        score_threshold: int | None = None,
-        interest_keywords_json: str | None = None,
-        keyword_prefilter: bool | None = None,
+        name: Any = _MISSING,
+        schedule_cron: Any = _MISSING,
+        enabled: Any = _MISSING,
+        analyze_limit: Any = _MISSING,
+        digest_top_n: Any = _MISSING,
+        push_digest: Any = _MISSING,
+        score_threshold: Any = _MISSING,
+        interest_keywords_json: Any = _MISSING,
+        keyword_prefilter: Any = _MISSING,
         prompt_template: Any = _MISSING,
         scoring_rubric: Any = _MISSING,
         system_prompt: Any = _MISSING,
@@ -1227,31 +1233,6 @@ class Database:
         row = self.get_pipeline_job(job_id)
         if not row:
             return False
-        new_prompt = (
-            row["prompt_template"]
-            if prompt_template is _MISSING
-            else prompt_template
-        )
-        new_rubric = (
-            row["scoring_rubric"]
-            if scoring_rubric is _MISSING
-            else scoring_rubric
-        )
-        new_system = (
-            row["system_prompt"]
-            if system_prompt is _MISSING
-            else system_prompt
-        )
-        new_llm = (
-            row["llm_profile_id"]
-            if llm_profile_id is _MISSING
-            else llm_profile_id
-        )
-        new_wh = (
-            row["feishu_webhook_url"]
-            if feishu_webhook_url is _MISSING
-            else feishu_webhook_url
-        )
         self.conn.execute(
             """
             UPDATE pipeline_jobs SET
@@ -1263,32 +1244,20 @@ class Database:
             WHERE id = ?
             """,
             (
-                name if name is not None else row["name"],
-                schedule_cron if schedule_cron is not None else row["schedule_cron"],
-                (1 if enabled else 0) if enabled is not None else row["enabled"],
-                analyze_limit
-                if analyze_limit is not None
-                else row["analyze_limit"],
-                digest_top_n
-                if digest_top_n is not None
-                else row["digest_top_n"],
-                (1 if push_digest else 0)
-                if push_digest is not None
-                else row["push_digest"],
-                score_threshold
-                if score_threshold is not None
-                else row["score_threshold"],
-                interest_keywords_json
-                if interest_keywords_json is not None
-                else row["interest_keywords_json"],
-                (1 if keyword_prefilter else 0)
-                if keyword_prefilter is not None
-                else row["keyword_prefilter"],
-                new_prompt,
-                new_rubric,
-                new_system,
-                new_llm,
-                (new_wh or "").strip(),
+                row["name"] if name is _MISSING else name,
+                row["schedule_cron"] if schedule_cron is _MISSING else schedule_cron,
+                row["enabled"] if enabled is _MISSING else (1 if enabled else 0),
+                row["analyze_limit"] if analyze_limit is _MISSING else analyze_limit,
+                row["digest_top_n"] if digest_top_n is _MISSING else digest_top_n,
+                row["push_digest"] if push_digest is _MISSING else (1 if push_digest else 0),
+                row["score_threshold"] if score_threshold is _MISSING else score_threshold,
+                row["interest_keywords_json"] if interest_keywords_json is _MISSING else interest_keywords_json,
+                row["keyword_prefilter"] if keyword_prefilter is _MISSING else (1 if keyword_prefilter else 0),
+                row["prompt_template"] if prompt_template is _MISSING else prompt_template,
+                row["scoring_rubric"] if scoring_rubric is _MISSING else scoring_rubric,
+                row["system_prompt"] if system_prompt is _MISSING else system_prompt,
+                row["llm_profile_id"] if llm_profile_id is _MISSING else llm_profile_id,
+                (row["feishu_webhook_url"] or "").strip() if feishu_webhook_url is _MISSING else (feishu_webhook_url or "").strip(),
                 job_id,
             ),
         )

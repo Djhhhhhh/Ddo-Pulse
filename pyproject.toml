@@ -34,8 +34,9 @@ where = [
     "services/backend/db",
     "services/backend/mcp",
     "services/backend/api",
+    "services/backend",
 ]
-include = ["ddo_pulse_*"]
+include = ["ddo_pulse_*", "agents", "tools", "tools.*", "prompts", "workflows"]
 
 [project.optional-dependencies]
 browser = ["playwright>=1.40.0"]
@@ -49,5 +50,9 @@ pythonpath = [
     "services/backend/db",
     "services/backend/mcp",
     "services/backend/api",
+    "services/backend/agents",
+    "services/backend/tools",
+    "services/backend/prompts",
+    "services/backend/workflows",
 ]
 testpaths = ["tests"]

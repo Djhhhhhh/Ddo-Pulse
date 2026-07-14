@@ -513,6 +513,11 @@ def test_source_fetch(body: SourceTestFetchRequest) -> SourceTestFetchOut:
 def create_source(
     body: SourceCreate, db: Annotated[Database, Depends(get_db)]
 ) -> SourceOut:
+    # 检查 URL 是否已存在，如果存在则返回已有源
+    existing = db.get_source_by_url(body.url)
+    if existing:
+        return _source_from_row(existing)
+
     cj = body.config_json if body.config_json else "{}"
     patch = body.model_dump(exclude_unset=True)
     if "analyze_limit" in patch:

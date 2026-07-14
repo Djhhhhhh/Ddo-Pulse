@@ -1,0 +1,110 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "创建 Agent 基础结构目录",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "迁移现有逻辑到 tools/",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "提取提示词到 prompts/",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-04",
+      "file": "task-04.md",
+      "title": "定义 Agent 基类",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-05",
+      "file": "task-05.md",
+      "title": "创建 Curator Agent",
+      "dependsOn": ["task-02", "task-03", "task-04"]
+    },
+    {
+      "id": "task-06",
+      "file": "task-06.md",
+      "title": "数据库迁移（deep_analysis_json）",
+      "dependsOn": []
+    },
+    {
+      "id": "task-07",
+      "file": "task-07.md",
+      "title": "深度解读 Prompt",
+      "dependsOn": ["task-03"]
+    },
+    {
+      "id": "task-08",
+      "file": "task-08.md",
+      "title": "创建 Reporter Agent",
+      "dependsOn": ["task-04", "task-07"]
+    },
+    {
+      "id": "task-09",
+      "file": "task-09.md",
+      "title": "报告目录结构",
+      "dependsOn": []
+    },
+    {
+      "id": "task-10",
+      "file": "task-10.md",
+      "title": "本地 MD 报告",
+      "dependsOn": ["task-08", "task-09"]
+    },
+    {
+      "id": "task-11",
+      "file": "task-11.md",
+      "title": "HTML 报告生成",
+      "dependsOn": ["task-08", "task-09"]
+    },
+    {
+      "id": "task-12",
+      "file": "task-12.md",
+      "title": "截图功能",
+      "dependsOn": ["task-11"]
+    },
+    {
+      "id": "task-13",
+      "file": "task-13.md",
+      "title": "报告 API",
+      "dependsOn": ["task-09"]
+    },
+    {
+      "id": "task-14",
+      "file": "task-14.md",
+      "title": "前端报告页面",
+      "dependsOn": ["task-13"]
+    },
+    {
+      "id": "task-15",
+      "file": "task-15.md",
+      "title": "定义工作流",
+      "dependsOn": ["task-05", "task-10", "task-11", "task-12"]
+    },
+    {
+      "id": "task-16",
+      "file": "task-16.md",
+      "title": "Docker 配置",
+      "dependsOn": []
+    }
+  ],
+  "parallelGroups": [
+    ["task-01", "task-06", "task-09", "task-16"],
+    ["task-02", "task-03", "task-04"],
+    ["task-05", "task-07"],
+    ["task-08"],
+    ["task-10", "task-11", "task-13"],
+    ["task-12", "task-14"],
+    ["task-15"]
+  ]
+}
