@@ -98,6 +98,92 @@ def _source_analyze_caps_from_rows(sources: list[Any]) -> dict[int, int | None]:
     return out
 
 
+def _generate_local_reports(
+    database: Database,
+    job: dict[str, Any],
+    source_ids: list[int],
+    stats: dict[str, Any],
+) -> None:
+    """生成本地报告（MD、HTML、截图）"""
+    try:
+        from agents.reporter import ReporterAgent
+        from tools.publishers.report_dir import create_report_dir, generate_timestamp
+    except ImportError as exc:
+        logger.warning("Reporter agent not available: %s", exc)
+        return
+
+    # sqlite3.Row 不支持 .get()，统一转为 dict
+    job = dict(job)
+
+    # 获取精选文章
+    score_threshold = int(job.get("score_threshold", 7))
+    top_n = int(job.get("digest_top_n", 8))
+    logger.info(
+        "Local report: fetching candidates (threshold=%d, top_n=%d, sources=%s)",
+        score_threshold, top_n, source_ids,
+    )
+    rows = database.list_digest_candidates(
+        score_threshold=score_threshold,
+        limit=top_n,
+        source_ids=source_ids if source_ids else None,
+        exclude_pushed=False,
+    )
+
+    if not rows:
+        logger.info("No articles for local report")
+        stats["local_report"] = "no_articles"
+        return
+
+    logger.info("Local report: found %d articles", len(rows))
+
+    # 构建 LLM profile
+    profile_id = job.get("llm_profile_id")
+    if profile_id:
+        profile_row = database.get_llm_profile(int(profile_id))
+    else:
+        profile_row = database.get_default_llm_profile()
+
+    if not profile_row:
+        logger.warning("No LLM profile for deep analysis")
+        profile = {}
+    else:
+        profile = dict(profile_row)
+
+    # 转换文章格式（row 也是 sqlite3.Row，需转 dict）
+    articles = []
+    for row in rows:
+        r = dict(row)
+        articles.append({
+            "id": r["id"],
+            "title": r["title"],
+            "url": r["url"],
+            "score": r["score"],
+            "categories": json.loads(r.get("categories_json", "[]")),
+            "summary_zh": r.get("summary_zh", ""),
+            "reason": r.get("reason", ""),
+            "content_snippet": r.get("content_snippet", ""),
+        })
+
+    # 生成报告
+    timestamp = generate_timestamp()
+    report_dir = create_report_dir(timestamp)
+    logger.info("Local report: writing to %s", report_dir)
+
+    reporter = ReporterAgent(profile)
+    result = reporter.run({
+        "articles": articles,
+        "timestamp": timestamp,
+    })
+
+    stats["local_report_dir"] = result.get("report_dir", str(report_dir))
+    stats["local_report_timestamp"] = result.get("timestamp", timestamp)
+    stats["local_report_generated"] = True
+    stats["local_report_md"] = result.get("md_path")
+    stats["local_report_html"] = result.get("html_path")
+    stats["local_report_screenshots"] = len(result.get("screenshots", []))
+    logger.info("Local reports generated: %s", result)
+
+
 def _pipeline_terminal(run_id: int, database: Database, stats: dict[str, Any]) -> None:
     errs = int(stats.get("errors", 0) or 0)
     if errs > 0:
@@ -290,6 +376,14 @@ def run_pipeline_job(
             stats["push_skip_reason"] = dstats.get("push_skip_reason")
             stats["push_error"] = dstats.get("push_error")
             if dstats.get("push_error") and not dstats.get("pushed"):
+                stats["errors"] = int(stats["errors"]) + 1
+
+            # 生成本地报告（MD、HTML、截图）
+            try:
+                _generate_local_reports(database, job, source_ids, stats)
+            except Exception as exc:
+                logger.exception("Local report generation failed: %s", exc)
+                stats["report_error"] = str(exc)
                 stats["errors"] = int(stats["errors"]) + 1
 
         _pipeline_terminal(run_id, database, stats)

@@ -18,9 +18,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖（包括 Playwright Chromium 所需的库和中文字体）
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get install -y --no-install-recommends curl \
+        libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 \
+        libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+        libgbm1 libpango-1.0-0 libcairo2 libasound2 \
+        libatspi2.0-0 libcups2 libxshmfence1 \
+        fonts-noto-cjk fonts-noto-color-emoji && \
     rm -rf /var/lib/apt/lists/*
 
 # 拷贝项目文件
@@ -29,8 +34,9 @@ COPY . .
 # 拷贝前端构建产物
 COPY --from=frontend-builder /app/dist ./services/web/frontend/dist
 
-# 配置 pip 国内镜像源并安装 Python 依赖
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com .
+# 配置 pip 国内镜像源并安装 Python 依赖（含 Playwright）
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com ".[browser]" && \
+    playwright install chromium
 
 # 修复安装后路径问题：
 # 1. main.py 中 _SERVICES_ROOT = parents[3]，pip 安装后解析到 /usr/local/lib/

@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
     categories_json TEXT DEFAULT '[]',
     summary_zh TEXT,
     reason TEXT,
+    deep_analysis_json TEXT,
     analyzed_at TEXT NOT NULL,
     pushed_at TEXT,
     read_at TEXT
