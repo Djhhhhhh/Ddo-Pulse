@@ -11,7 +11,7 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 COPY services/web/frontend/ ./
-RUN npm ci && npm run build
+RUN npm config set registry https://registry.npmmirror.com && npm ci && npm run build
 
 # ---- Stage 2: 运行时 ----
 FROM python:3.11-slim
@@ -29,8 +29,8 @@ COPY . .
 # 拷贝前端构建产物
 COPY --from=frontend-builder /app/dist ./services/web/frontend/dist
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir .
+# 配置 pip 国内镜像源并安装 Python 依赖
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com .
 
 # 修复安装后路径问题：
 # 1. main.py 中 _SERVICES_ROOT = parents[3]，pip 安装后解析到 /usr/local/lib/
@@ -49,8 +49,8 @@ VOLUME /root/.ddo_pulse
 # 暴露 API 端口
 EXPOSE 8765
 
-# 拷贝并设置入口脚本
+# 拷贝并设置入口脚本（修复 Windows 换行符）
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

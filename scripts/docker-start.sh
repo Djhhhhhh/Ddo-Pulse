@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# 错误捕获：失败时保持窗口打开
+trap 'echo ""; echo "❌ 启动失败，请检查上方错误信息"; read -rp "按回车键关闭..." _' ERR
+
 IMAGE_NAME="ddo-pulse"
 CONTAINER_NAME="ddo-pulse"
 
@@ -37,3 +40,6 @@ echo ""
 echo "✅ Ddo-Pulse 已启动"
 echo "   访问地址: http://localhost:${HOST_PORT}"
 echo "   查看日志: docker logs -f ${CONTAINER_NAME}"
+
+# 保持窗口打开，方便查看输出
+read -rp "按回车键关闭..." _

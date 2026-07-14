@@ -1,0 +1,16 @@
+services:
+  ddo-pulse:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile
+    container_name: ddo-pulse
+    ports:
+      - "${DDO_PULSE_API_PORT:-8765}:8765"
+    volumes:
+      - ddo-pulse-data:/root/.ddo_pulse
+    environment:
+      - DDO_PULSE_API_PORT=8765
+    restart: unless-stopped
+
+volumes:
+  ddo-pulse-data:
