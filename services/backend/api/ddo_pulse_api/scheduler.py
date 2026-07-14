@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ddo_pulse_core.pipeline import run_pipeline_job
+from ddo_pulse_db.datetime_util import APP_TZ
 from ddo_pulse_db.repository import Database
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ def validate_cron_expression(expr: str) -> None:
     if not s:
         raise ValueError("empty cron expression")
     if _HAS_APSCHEDULER and CronTrigger is not None:
-        CronTrigger.from_crontab(s)
+        CronTrigger.from_crontab(s, timezone=APP_TZ)
         return
     parts = s.split()
     if len(parts) != 5:
@@ -75,7 +76,7 @@ def reload_pipeline_jobs_schedule(s: AsyncIOScheduler | None = None) -> None:
             jid = int(job["id"])
             cron = (job["schedule_cron"] or "").strip()
             try:
-                trigger = CronTrigger.from_crontab(cron)
+                trigger = CronTrigger.from_crontab(cron, timezone=APP_TZ)
             except Exception as exc:
                 logger.warning("Skip job %s invalid cron %r: %s", jid, cron, exc)
                 continue
