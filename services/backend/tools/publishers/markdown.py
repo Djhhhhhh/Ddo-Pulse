@@ -32,6 +32,9 @@ def generate_digest_md(
         output_path.write_text("\n".join(lines), encoding="utf-8")
         return output_path
 
+    lines.append(f"> 共 {len(articles)} 篇精选")
+    lines.append("")
+
     for idx, row in enumerate(articles, 1):
         title = row.get("title") or row.get("url", "")
         url = row.get("url", "")
@@ -44,42 +47,48 @@ def generate_digest_md(
         reason = (row.get("reason") or "").strip()
         deep_analysis = row.get("deep_analysis", {})
 
+        # 标题与元信息
         lines.append(f"## {idx}. [{title}]({url})")
-        lines.append(f"**{score} 分** · {cats}")
+        lines.append("")
+        lines.append(f"📌 **{score} 分** · {cats}")
+        lines.append("")
 
+        # 摘要
         if summary:
-            lines.append("")
             lines.append(summary)
-
-        if reason:
             lines.append("")
-            lines.append(f"> {reason}")
+
+        # 推荐理由
+        if reason:
+            lines.append(f"> 💬 {reason}")
+            lines.append("")
 
         # 深度解读
         if deep_analysis:
-            lines.append("")
-            lines.append("### 📖 深度解读")
-
             core_content = deep_analysis.get("core_content", "")
-            if core_content:
-                lines.append("")
-                lines.append(core_content)
-
             key_points = deep_analysis.get("key_points", [])
-            if key_points:
+            insights = deep_analysis.get("insights", "")
+
+            if core_content or key_points or insights:
+                lines.append("**📖 深度解读**")
                 lines.append("")
-                lines.append("**核心要点：**")
+
+            if core_content:
+                lines.append(core_content)
+                lines.append("")
+
+            if key_points:
                 for point in key_points:
                     lines.append(f"- {point}")
-
-            insights = deep_analysis.get("insights", "")
-            if insights:
                 lines.append("")
-                lines.append(f"**💡 思路启发：** {insights}")
 
-        lines.append("")
-        lines.append("---")
-        lines.append("")
+            if insights:
+                lines.append(f"💡 {insights}")
+                lines.append("")
+
+        if idx < len(articles):
+            lines.append("---")
+            lines.append("")
 
     output_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     return output_path
