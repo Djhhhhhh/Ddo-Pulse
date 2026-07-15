@@ -55,17 +55,23 @@ class JobSourceOut(BaseModel):
     source_enabled: bool
     focus_config_json: str
     job_source_enabled: bool
+    priority: str = "P1"
+    fetch_limit: int | None = None
 
 
 class JobSourceCreate(BaseModel):
     source_id: int
     focus_config_json: str = "{}"
     enabled: bool = True
+    priority: str = "P1"
+    fetch_limit: int | None = None
 
 
 class JobSourceUpdate(BaseModel):
     focus_config_json: str | None = None
     enabled: bool | None = None
+    priority: str | None = None
+    fetch_limit: int | None = None
 
 
 class SyncFromCsvResult(BaseModel):
@@ -197,6 +203,14 @@ class PipelineJobOut(BaseModel):
     scoring_rubric: str | None = None
     system_prompt: str | None = None
     llm_profile_id: int | None = None
+    pool_ranking_enabled: int = 0
+    ai_quota: int = 6
+    dev_quota: int = 4
+    other_quota: int = 2
+    relevance_weight: float = 0.6
+    novelty_weight: float = 0.4
+    ai_category_tags: str = '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]'
+    dev_category_tags: str = '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]'
 
 
 class PipelineJobCreate(BaseModel):
@@ -214,6 +228,14 @@ class PipelineJobCreate(BaseModel):
     scoring_rubric: str | None = None
     system_prompt: str | None = None
     llm_profile_id: int | None = None
+    pool_ranking_enabled: int = 0
+    ai_quota: int = 6
+    dev_quota: int = 4
+    other_quota: int = 2
+    relevance_weight: float = 0.6
+    novelty_weight: float = 0.4
+    ai_category_tags: str = '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]'
+    dev_category_tags: str = '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]'
 
 
 class PipelineJobUpdate(BaseModel):
@@ -231,6 +253,14 @@ class PipelineJobUpdate(BaseModel):
     scoring_rubric: str | None = None
     system_prompt: str | None = None
     llm_profile_id: int | None = None
+    pool_ranking_enabled: int | None = None
+    ai_quota: int | None = None
+    dev_quota: int | None = None
+    other_quota: int | None = None
+    relevance_weight: float | None = None
+    novelty_weight: float | None = None
+    ai_category_tags: str | None = None
+    dev_category_tags: str | None = None
 
 
 class JobRunOut(BaseModel):

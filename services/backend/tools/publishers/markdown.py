@@ -25,7 +25,7 @@ def generate_digest_md(
     output_path: Path
 ) -> Path:
     """生成公众号友好的 MD 报告"""
-    lines = [f"# Ddo-Pulse 精选 · {date}", ""]
+    lines = [f"# Ddo-Pulse 每日资讯速递 · {date}", ""]
 
     if not articles:
         lines.append("_今日暂无达到阈值的精选文章。_")
@@ -38,7 +38,6 @@ def generate_digest_md(
     for idx, row in enumerate(articles, 1):
         title = row.get("title") or row.get("url", "")
         url = row.get("url", "")
-        score = row.get("score", 0)
         categories = row.get("categories", [])
         if isinstance(categories, str):
             categories = _parse_categories(categories)
@@ -50,7 +49,7 @@ def generate_digest_md(
         # 标题与元信息
         lines.append(f"## {idx}. [{title}]({url})")
         lines.append("")
-        lines.append(f"📌 **{score} 分** · {cats}")
+        lines.append(f"Tags：{cats}")
         lines.append("")
 
         # 摘要

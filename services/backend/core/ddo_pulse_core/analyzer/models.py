@@ -11,6 +11,8 @@ class AnalysisOutput(BaseModel):
     categories: list[str] = Field(default_factory=list)
     summary_zh: str
     reason: str
+    relevance: int | None = Field(default=None, ge=0, le=10)
+    novelty: int | None = Field(default=None, ge=0, le=10)
 
     @field_validator("categories", mode="before")
     @classmethod

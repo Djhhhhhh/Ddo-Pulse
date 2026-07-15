@@ -159,6 +159,15 @@ def _profile_from_row(row) -> ProfileOut:
     )
 
 
+def _row_safe(row, key, default=None):
+    """Get value from sqlite3.Row or dict safely."""
+    try:
+        v = row[key]
+        return v if v is not None else default
+    except (KeyError, IndexError):
+        return default
+
+
 def _pipeline_job_from_row(row) -> PipelineJobOut:
     try:
         kw = json.loads(row["interest_keywords_json"] or "[]")
@@ -188,6 +197,14 @@ def _pipeline_job_from_row(row) -> PipelineJobOut:
         llm_profile_id=int(row["llm_profile_id"])
         if row["llm_profile_id"] is not None
         else None,
+        pool_ranking_enabled=int(_row_safe(row, "pool_ranking_enabled", 0) or 0),
+        ai_quota=int(_row_safe(row, "ai_quota", 6) or 6),
+        dev_quota=int(_row_safe(row, "dev_quota", 4) or 4),
+        other_quota=int(_row_safe(row, "other_quota", 2) or 2),
+        relevance_weight=float(_row_safe(row, "relevance_weight", 0.6) or 0.6),
+        novelty_weight=float(_row_safe(row, "novelty_weight", 0.4) or 0.4),
+        ai_category_tags=str(_row_safe(row, "ai_category_tags", '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]')),
+        dev_category_tags=str(_row_safe(row, "dev_category_tags", '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]')),
     )
 
 
@@ -643,6 +660,7 @@ def sync_sources_from_csv(
 
 
 def _job_source_from_row(row) -> JobSourceOut:
+    fl = _row_safe(row, "fetch_limit")
     return JobSourceOut(
         job_source_id=int(row["job_source_id"]),
         job_id=int(row["job_id"]),
@@ -654,6 +672,8 @@ def _job_source_from_row(row) -> JobSourceOut:
         source_enabled=bool(row["source_enabled"]),
         focus_config_json=row["focus_config_json"] or "{}",
         job_source_enabled=bool(row["job_source_enabled"]),
+        priority=str(_row_safe(row, "priority", "P1") or "P1"),
+        fetch_limit=int(fl) if fl is not None else None,
     )
 
 
@@ -684,6 +704,8 @@ def add_job_source(
         source_id=body.source_id,
         focus_config_json=body.focus_config_json,
         enabled=body.enabled,
+        priority=body.priority,
+        fetch_limit=body.fetch_limit,
     )
     row = db.get_job_source(job_id, body.source_id)
     assert row is not None
@@ -695,6 +717,8 @@ def add_job_source(
         "source_id": row["source_id"],
         "focus_config_json": row["focus_config_json"],
         "job_source_enabled": row["enabled"],
+        "priority": row["priority"],
+        "fetch_limit": row["fetch_limit"],
         "name": src["name"],
         "type": src["type"],
         "url": src["url"],
@@ -714,10 +738,17 @@ def update_job_source(
     js = db.get_job_source(job_id, source_id)
     if not js:
         raise HTTPException(404, "Job-source association not found")
-    if body.focus_config_json is not None:
+    patch_keys = set(body.model_dump(exclude_unset=True).keys())
+    if "focus_config_json" in patch_keys:
         db.update_job_source_focus(job_id, source_id, body.focus_config_json)
-    if body.enabled is not None:
+    if "enabled" in patch_keys:
         db.set_job_source_enabled(job_id, source_id, body.enabled)
+    if "priority" in patch_keys:
+        if body.priority not in ("P0", "P1", "P2"):
+            raise HTTPException(400, "priority must be P0, P1, or P2")
+        db.update_job_source_priority(job_id, source_id, body.priority)
+    if "fetch_limit" in patch_keys:
+        db.update_job_source_fetch_limit(job_id, source_id, body.fetch_limit)
     js = db.get_job_source(job_id, source_id)
     src = db.get_source(source_id)
     combined = {
@@ -726,6 +757,8 @@ def update_job_source(
         "source_id": js["source_id"],
         "focus_config_json": js["focus_config_json"],
         "job_source_enabled": js["enabled"],
+        "priority": js["priority"],
+        "fetch_limit": js["fetch_limit"],
         "name": src["name"],
         "type": src["type"],
         "url": src["url"],
@@ -835,6 +868,14 @@ def create_pipeline_job(
         system_prompt=body.system_prompt,
         llm_profile_id=body.llm_profile_id,
         feishu_webhook_url=wh,
+        pool_ranking_enabled=body.pool_ranking_enabled,
+        ai_quota=body.ai_quota,
+        dev_quota=body.dev_quota,
+        other_quota=body.other_quota,
+        relevance_weight=body.relevance_weight,
+        novelty_weight=body.novelty_weight,
+        ai_category_tags=body.ai_category_tags,
+        dev_category_tags=body.dev_category_tags,
     )
     reload_pipeline_jobs_schedule(scheduler)
     row = db.get_pipeline_job(jid)
@@ -920,6 +961,14 @@ def update_pipeline_job_api(
         system_prompt=_f("system_prompt"),
         llm_profile_id=_f("llm_profile_id"),
         feishu_webhook_url=_wh(),
+        pool_ranking_enabled=_f("pool_ranking_enabled"),
+        ai_quota=_f("ai_quota"),
+        dev_quota=_f("dev_quota"),
+        other_quota=_f("other_quota"),
+        relevance_weight=_f("relevance_weight"),
+        novelty_weight=_f("novelty_weight"),
+        ai_category_tags=_f("ai_category_tags"),
+        dev_category_tags=_f("dev_category_tags"),
     )
     if not ok:
         raise HTTPException(404, "Pipeline job not found")

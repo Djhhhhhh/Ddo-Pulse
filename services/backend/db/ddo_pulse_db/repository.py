@@ -734,14 +734,17 @@ class Database:
         summary_zh: str,
         reason: str,
         analyzed_at: str | None = None,
+        relevance: int | None = None,
+        novelty: int | None = None,
+        composite_score: float | None = None,
     ) -> int:
         analyzed = analyzed_at or storage_now_iso()
         cur = self.conn.execute(
             """
             INSERT INTO analyzed_items (
                 raw_item_id, profile_id, is_quality, score, categories_json,
-                summary_zh, reason, analyzed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                summary_zh, reason, analyzed_at, relevance, novelty, composite_score
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 raw_item_id,
@@ -752,6 +755,9 @@ class Database:
                 summary_zh,
                 reason,
                 analyzed,
+                relevance,
+                novelty,
+                composite_score,
             ),
         )
         self.conn.commit()
@@ -926,6 +932,46 @@ class Database:
             ).fetchall()
         )
 
+    def list_all_digest_candidates(
+        self,
+        score_threshold: int,
+        source_ids: list[int] | None = None,
+        *,
+        exclude_pushed: bool = True,
+    ) -> list[sqlite3.Row]:
+        """Return all quality candidates without LIMIT, ordered by composite_score DESC.
+
+        Used by pool_ranker when pool-based ranking is enabled.
+        Falls back to score when composite_score is NULL.
+        """
+        if source_ids is not None and len(source_ids) == 0:
+            return []
+        clause = "a.is_quality = 1 AND a.score >= ?"
+        params: list[Any] = [score_threshold]
+        if exclude_pushed:
+            clause += " AND a.pushed_at IS NULL"
+        if source_ids:
+            placeholders = ",".join("?" * len(source_ids))
+            clause += f" AND r.source_id IN ({placeholders})"
+            params.extend(source_ids)
+        return list(
+            self.conn.execute(
+                f"""
+                SELECT
+                    a.id, a.raw_item_id, a.is_quality, a.score,
+                    a.relevance, a.novelty, a.composite_score,
+                    a.categories_json, a.summary_zh, a.reason, a.analyzed_at,
+                    a.pushed_at, a.read_at,
+                    r.title, r.url, r.content_snippet
+                FROM analyzed_items a
+                INNER JOIN raw_items r ON r.id = a.raw_item_id
+                WHERE {clause}
+                ORDER BY a.composite_score IS NULL, a.composite_score DESC, a.score DESC
+                """,
+                params,
+            ).fetchall()
+        )
+
     def merged_digest_item_ids(
         self, job_id: int, date: str, new_ids: list[int]
     ) -> list[int]:
@@ -1084,13 +1130,15 @@ class Database:
         source_id: int,
         focus_config_json: str = "{}",
         enabled: bool = True,
+        priority: str = "P1",
+        fetch_limit: int | None = None,
     ) -> int:
         cur = self.conn.execute(
             """
-            INSERT INTO job_sources (job_id, source_id, focus_config_json, enabled, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO job_sources (job_id, source_id, focus_config_json, enabled, priority, fetch_limit, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (job_id, source_id, focus_config_json, 1 if enabled else 0, storage_now_iso()),
+            (job_id, source_id, focus_config_json, 1 if enabled else 0, priority, fetch_limit, storage_now_iso()),
         )
         self.conn.commit()
         return int(cur.lastrowid)
@@ -1116,6 +1164,7 @@ class Database:
                 """
                 SELECT js.id AS job_source_id, js.job_id, js.source_id,
                        js.focus_config_json, js.enabled AS job_source_enabled,
+                       js.priority, js.fetch_limit,
                        s.name, s.type, s.url, s.config_json, s.enabled AS source_enabled
                 FROM job_sources js
                 JOIN sources s ON s.id = js.source_id
@@ -1135,6 +1184,26 @@ class Database:
             WHERE job_id = ? AND source_id = ?
             """,
             (focus_config_json, job_id, source_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def update_job_source_priority(
+        self, job_id: int, source_id: int, priority: str
+    ) -> bool:
+        cur = self.conn.execute(
+            "UPDATE job_sources SET priority = ? WHERE job_id = ? AND source_id = ?",
+            (priority, job_id, source_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def update_job_source_fetch_limit(
+        self, job_id: int, source_id: int, fetch_limit: int | None
+    ) -> bool:
+        cur = self.conn.execute(
+            "UPDATE job_sources SET fetch_limit = ? WHERE job_id = ? AND source_id = ?",
+            (fetch_limit, job_id, source_id),
         )
         self.conn.commit()
         return cur.rowcount > 0
@@ -1178,6 +1247,14 @@ class Database:
         system_prompt: str | None = None,
         llm_profile_id: int | None = None,
         feishu_webhook_url: str | None = None,
+        pool_ranking_enabled: int = 0,
+        ai_quota: int = 6,
+        dev_quota: int = 4,
+        other_quota: int = 2,
+        relevance_weight: float = 0.6,
+        novelty_weight: float = 0.4,
+        ai_category_tags: str = '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]',
+        dev_category_tags: str = '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]',
     ) -> int:
         now = storage_now_iso()
         webhook = (feishu_webhook_url or "").strip()
@@ -1187,8 +1264,10 @@ class Database:
                 name, enabled, schedule_cron, analyze_limit, digest_top_n, push_digest,
                 score_threshold, interest_keywords_json, keyword_prefilter,
                 prompt_template, scoring_rubric, system_prompt, llm_profile_id,
-                feishu_webhook_url, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                feishu_webhook_url, created_at,
+                pool_ranking_enabled, ai_quota, dev_quota, other_quota,
+                relevance_weight, novelty_weight, ai_category_tags, dev_category_tags
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 name,
@@ -1206,6 +1285,14 @@ class Database:
                 llm_profile_id,
                 webhook,
                 now,
+                pool_ranking_enabled,
+                ai_quota,
+                dev_quota,
+                other_quota,
+                relevance_weight,
+                novelty_weight,
+                ai_category_tags,
+                dev_category_tags,
             ),
         )
         self.conn.commit()
@@ -1229,6 +1316,14 @@ class Database:
         system_prompt: Any = _MISSING,
         llm_profile_id: Any = _MISSING,
         feishu_webhook_url: Any = _MISSING,
+        pool_ranking_enabled: Any = _MISSING,
+        ai_quota: Any = _MISSING,
+        dev_quota: Any = _MISSING,
+        other_quota: Any = _MISSING,
+        relevance_weight: Any = _MISSING,
+        novelty_weight: Any = _MISSING,
+        ai_category_tags: Any = _MISSING,
+        dev_category_tags: Any = _MISSING,
     ) -> bool:
         row = self.get_pipeline_job(job_id)
         if not row:
@@ -1240,7 +1335,10 @@ class Database:
                 digest_top_n = ?, push_digest = ?, score_threshold = ?,
                 interest_keywords_json = ?, keyword_prefilter = ?,
                 prompt_template = ?, scoring_rubric = ?, system_prompt = ?,
-                llm_profile_id = ?, feishu_webhook_url = ?
+                llm_profile_id = ?, feishu_webhook_url = ?,
+                pool_ranking_enabled = ?, ai_quota = ?, dev_quota = ?, other_quota = ?,
+                relevance_weight = ?, novelty_weight = ?,
+                ai_category_tags = ?, dev_category_tags = ?
             WHERE id = ?
             """,
             (
@@ -1258,6 +1356,14 @@ class Database:
                 row["system_prompt"] if system_prompt is _MISSING else system_prompt,
                 row["llm_profile_id"] if llm_profile_id is _MISSING else llm_profile_id,
                 (row["feishu_webhook_url"] or "").strip() if feishu_webhook_url is _MISSING else (feishu_webhook_url or "").strip(),
+                row["pool_ranking_enabled"] if pool_ranking_enabled is _MISSING else pool_ranking_enabled,
+                row["ai_quota"] if ai_quota is _MISSING else ai_quota,
+                row["dev_quota"] if dev_quota is _MISSING else dev_quota,
+                row["other_quota"] if other_quota is _MISSING else other_quota,
+                row["relevance_weight"] if relevance_weight is _MISSING else relevance_weight,
+                row["novelty_weight"] if novelty_weight is _MISSING else novelty_weight,
+                row["ai_category_tags"] if ai_category_tags is _MISSING else ai_category_tags,
+                row["dev_category_tags"] if dev_category_tags is _MISSING else dev_category_tags,
                 job_id,
             ),
         )

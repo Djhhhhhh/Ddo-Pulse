@@ -34,7 +34,15 @@ CREATE TABLE IF NOT EXISTS pipeline_jobs (
     system_prompt TEXT,
     llm_profile_id INTEGER REFERENCES llm_profiles(id) ON DELETE SET NULL,
     feishu_webhook_url TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    pool_ranking_enabled INTEGER NOT NULL DEFAULT 0,
+    ai_quota INTEGER NOT NULL DEFAULT 6,
+    dev_quota INTEGER NOT NULL DEFAULT 4,
+    other_quota INTEGER NOT NULL DEFAULT 2,
+    relevance_weight REAL NOT NULL DEFAULT 0.6,
+    novelty_weight REAL NOT NULL DEFAULT 0.4,
+    ai_category_tags TEXT NOT NULL DEFAULT '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]',
+    dev_category_tags TEXT NOT NULL DEFAULT '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]'
 );
 
 CREATE TABLE IF NOT EXISTS sources (
@@ -54,6 +62,8 @@ CREATE TABLE IF NOT EXISTS job_sources (
     focus_config_json TEXT NOT NULL DEFAULT '{}',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'P1',
+    fetch_limit INTEGER,
     UNIQUE(job_id, source_id)
 );
 
@@ -79,7 +89,10 @@ CREATE TABLE IF NOT EXISTS analyzed_items (
     deep_analysis_json TEXT,
     analyzed_at TEXT NOT NULL,
     pushed_at TEXT,
-    read_at TEXT
+    read_at TEXT,
+    relevance INTEGER,
+    novelty INTEGER,
+    composite_score REAL
 );
 
 CREATE TABLE IF NOT EXISTS digests (

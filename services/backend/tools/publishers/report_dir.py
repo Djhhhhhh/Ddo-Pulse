@@ -20,5 +20,4 @@ def create_report_dir(timestamp: str = None) -> Path:
         timestamp = generate_timestamp()
     report_dir = get_report_base_dir() / timestamp
     report_dir.mkdir(parents=True, exist_ok=True)
-    (report_dir / "images").mkdir(exist_ok=True)
     return report_dir

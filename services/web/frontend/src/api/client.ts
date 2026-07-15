@@ -108,6 +108,8 @@ export interface JobSource {
   source_enabled: boolean;
   focus_config_json: string;
   job_source_enabled: boolean;
+  priority: string;
+  fetch_limit: number | null;
 }
 
 export interface Profile {
@@ -157,6 +159,14 @@ export interface PipelineJob {
   scoring_rubric: string | null;
   system_prompt: string | null;
   llm_profile_id: number | null;
+  pool_ranking_enabled: number;
+  ai_quota: number;
+  dev_quota: number;
+  other_quota: number;
+  relevance_weight: number;
+  novelty_weight: number;
+  ai_category_tags: string;
+  dev_category_tags: string;
 }
 
 export const api = {
@@ -212,6 +222,11 @@ export const api = {
       body: JSON.stringify(body),
     }),
   updateJobSourceFocus: (jobId: number, sourceId: number, body: object) =>
+    request<JobSource>(`/pipeline-jobs/${jobId}/sources/${sourceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  updateJobSource: (jobId: number, sourceId: number, body: object) =>
     request<JobSource>(`/pipeline-jobs/${jobId}/sources/${sourceId}`, {
       method: "PATCH",
       body: JSON.stringify(body),
