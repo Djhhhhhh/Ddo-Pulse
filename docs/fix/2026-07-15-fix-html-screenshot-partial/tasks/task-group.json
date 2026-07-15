@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "task-01",
+      "file": "task-01.md",
+      "title": "修改 screenshot.py 实现完整截图",
+      "dependsOn": []
+    },
+    {
+      "id": "task-02",
+      "file": "task-02.md",
+      "title": "修改 reporter.py 调用封面图生成",
+      "dependsOn": ["task-01"]
+    },
+    {
+      "id": "task-03",
+      "file": "task-03.md",
+      "title": "测试验证",
+      "dependsOn": ["task-01", "task-02"]
+    }
+  ],
+  "parallelGroups": [
+    ["task-01"],
+    ["task-02"],
+    ["task-03"]
+  ]
+}

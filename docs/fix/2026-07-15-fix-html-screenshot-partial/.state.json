@@ -1,0 +1,40 @@
+{
+  "runId": "fix-2026-07-15-fix-html-screenshot-partial",
+  "createdAt": "2026-07-15T00:00:00Z",
+  "projectRoot": "/Users/djhhh/work_area/Ddo-Pulse",
+  "skillRoot": "/Users/djhhh/work_area/Ddo-Pulse/.claude/skills/Ddo-Code-Flow",
+  "userRequirement": "需求如下：\n1. 现在存在个bug，现在html截图功能有问题，现在只能截图一部分，导致信息不完整",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Pulse-fix-2026-07-15-fix-html-screenshot-partial",
+  "type": "fix",
+  "dateDescription": "2026-07-15-fix-html-screenshot-partial",
+  "artifactDir": "/Users/djhhh/work_area/Ddo-Pulse-fix-2026-07-15-fix-html-screenshot-partial/docs/fix/2026-07-15-fix-html-screenshot-partial",
+  "currentStage": "done",
+  "stages": {
+    "context": {"status": "done"},
+    "requirement": {"status": "done"},
+    "spec": {"status": "done"},
+    "planning": {"status": "done"},
+    "test-plan": {"status": "done"},
+    "tasking": {"status": "done"},
+    "coding": {"status": "done"},
+    "verification": {"status": "done"},
+    "reporting": {"status": "done"},
+    "reflection": {"status": "done"},
+    "done": {"status": "done"}
+  },
+  "history": [
+    {"event": "created", "at": "2026-07-15T00:00:00Z"},
+    {"event": "git-worktree-created", "at": "2026-07-15T00:00:00Z", "branch": "fix/2026-07-15-fix-html-screenshot-partial"},
+    {"event": "stage completed", "stage": "context", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "requirement", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "spec", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "planning", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "test-plan", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "tasking", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "coding", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "verification", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "reporting", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "reflection", "at": "2026-07-15T00:00:00Z"},
+    {"event": "stage completed", "stage": "done", "at": "2026-07-15T00:00:00Z"}
+  ]
+}

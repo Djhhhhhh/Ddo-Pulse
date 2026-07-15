@@ -63,11 +63,16 @@ class ReporterAgent(Agent):
         # 生成截图
         screenshots = self._generate_screenshots(html_path, report_dir)
 
+        # 生成封面图
+        covers = self._generate_covers(html_path, report_dir)
+
         return {
             "report_dir": str(report_dir),
             "md_path": str(md_path),
             "html_path": str(html_path),
             "screenshots": [str(s) for s in screenshots],
+            "cover_main": str(covers.get("main", "")),
+            "cover_sub": str(covers.get("sub", "")),
             "timestamp": timestamp,
         }
 
@@ -141,3 +146,9 @@ class ReporterAgent(Agent):
         from tools.publishers.screenshot import generate_screenshots
         images_dir = report_dir / "images"
         return generate_screenshots(html_path, images_dir)
+
+    def _generate_covers(self, html_path: Path, report_dir: Path) -> dict:
+        """生成封面图"""
+        from tools.publishers.screenshot import generate_covers
+        images_dir = report_dir / "images"
+        return generate_covers(html_path, images_dir)

@@ -1,0 +1,8 @@
+{
+  "branch": "fix/2026-07-15-fix-html-screenshot-partial",
+  "type": "fix",
+  "dateDescription": "2026-07-15-fix-html-screenshot-partial",
+  "createdAt": "2026-07-15T00:00:00Z",
+  "baseRef": "HEAD",
+  "commitHash": "31e7247"
+}
