@@ -102,6 +102,15 @@ const jobModal = ref({
   userPrompt: "",
   selectedRubricId: "balanced",
   selectedTemplateId: "default",
+  // Pool ranking config
+  pool_ranking_enabled: 0,
+  ai_quota: 6,
+  dev_quota: 4,
+  other_quota: 2,
+  relevance_weight: 0.6,
+  novelty_weight: 0.4,
+  ai_category_tags: '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]',
+  dev_category_tags: '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]',
 });
 
 function populateJobModalFromJob(j: PipelineJob) {
@@ -121,6 +130,14 @@ function populateJobModalFromJob(j: PipelineJob) {
     userPrompt: j.system_prompt || "",
     selectedRubricId: "balanced",
     selectedTemplateId: "default",
+    pool_ranking_enabled: j.pool_ranking_enabled ?? 0,
+    ai_quota: j.ai_quota ?? 6,
+    dev_quota: j.dev_quota ?? 4,
+    other_quota: j.other_quota ?? 2,
+    relevance_weight: j.relevance_weight ?? 0.6,
+    novelty_weight: j.novelty_weight ?? 0.4,
+    ai_category_tags: j.ai_category_tags || '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]',
+    dev_category_tags: j.dev_category_tags || '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]',
   };
 }
 
@@ -142,6 +159,14 @@ function openCreateJobModal() {
     userPrompt: "",
     selectedRubricId: "balanced",
     selectedTemplateId: "default",
+    pool_ranking_enabled: 0,
+    ai_quota: 6,
+    dev_quota: 4,
+    other_quota: 2,
+    relevance_weight: 0.6,
+    novelty_weight: 0.4,
+    ai_category_tags: '["AI","机器学习","深度学习","LLM","大模型","NLP","CV","论文"]',
+    dev_category_tags: '["开发","工程","架构","DevOps","工具","前端","后端","数据库"]',
   };
   jobFormDialog.value?.showModal();
 }
@@ -186,6 +211,14 @@ async function submitJobModal() {
     prompt_template: finalPrompt,
     scoring_rubric: m.scoring_rubric || null,
     system_prompt: m.userPrompt?.trim() || null,
+    pool_ranking_enabled: m.pool_ranking_enabled,
+    ai_quota: m.ai_quota,
+    dev_quota: m.dev_quota,
+    other_quota: m.other_quota,
+    relevance_weight: m.relevance_weight,
+    novelty_weight: m.novelty_weight,
+    ai_category_tags: m.ai_category_tags,
+    dev_category_tags: m.dev_category_tags,
   };
 
   try {
@@ -531,6 +564,23 @@ async function onSourceAnalyzeLimitChange(s: JobSource, ev: Event) {
   }
 }
 
+async function onSourcePriorityChange(s: JobSource, ev: Event) {
+  const el = ev.target as HTMLSelectElement;
+  const next = el.value as "P0" | "P1" | "P2";
+  const prev = s.priority || "P1";
+  if (next === prev) return;
+  error.value = "";
+  try {
+    if (selectedJobId.value) {
+      await api.updateJobSource(selectedJobId.value, s.source_id, { priority: next });
+    }
+    await refresh();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+    el.value = prev;
+  }
+}
+
 function runStatusLabel(status: string) {
   if (status === "running") return "运行中";
   if (status === "ok" || status === "success") return "成功";
@@ -673,6 +723,7 @@ function runStatusClass(status: string) {
                           <th>ID</th>
                           <th>名称</th>
                           <th>类型</th>
+                          <th>优先级</th>
                           <th>每源最多分析</th>
                           <th>启用</th>
                           <th></th>
@@ -683,6 +734,17 @@ function runStatusClass(status: string) {
                           <td>{{ s.source_id }}</td>
                           <td>{{ s.name }}</td>
                           <td>{{ s.type }}</td>
+                          <td>
+                            <select
+                              class="select src-priority-select"
+                              :value="s.priority || 'P1'"
+                              @change="onSourcePriorityChange(s, $event)"
+                            >
+                              <option value="P0">P0</option>
+                              <option value="P1">P1</option>
+                              <option value="P2">P2</option>
+                            </select>
+                          </td>
                           <td>
                             <input
                               type="number"
@@ -884,6 +946,47 @@ function runStatusClass(status: string) {
           v-model:system-template="jobModal.prompt_template"
           v-model:user-prompt="jobModal.userPrompt"
         />
+
+        <!-- 评分策略（可选） -->
+        <details class="adv-details modal-details">
+          <summary>评分策略（可选）</summary>
+          <p class="muted small">
+            开启分池排名后，文章按类别分池选择，确保 AI、开发、综合领域均衡推送。
+          </p>
+          <label class="chk-inline">
+            <input v-model.number="jobModal.pool_ranking_enabled" type="checkbox" :true-value="1" :false-value="0" /> 启用分池排名
+          </label>
+          <template v-if="jobModal.pool_ranking_enabled">
+            <div class="pool-config-row">
+              <label class="label">relevance 权重</label>
+              <input v-model.number="jobModal.relevance_weight" type="number" class="input stepper-input" min="0" max="1" step="0.1" />
+              <label class="label">novelty 权重</label>
+              <input v-model.number="jobModal.novelty_weight" type="number" class="input stepper-input" min="0" max="1" step="0.1" />
+            </div>
+            <p class="muted small field-hint">
+              composite_score = relevance × {{ jobModal.relevance_weight }} + novelty × {{ jobModal.novelty_weight }}
+            </p>
+          </template>
+        </details>
+
+        <!-- 推送配额（可选） -->
+        <details class="adv-details modal-details" v-if="jobModal.pool_ranking_enabled">
+          <summary>推送配额（可选）</summary>
+          <p class="muted small">
+            各领域推送篇数，总和即为实际推送数上限。某池不足时自动从其他池补足。
+          </p>
+          <div class="pool-config-row">
+            <label class="label">AI 前沿</label>
+            <input v-model.number="jobModal.ai_quota" type="number" class="input stepper-input" min="0" max="20" step="1" />
+            <label class="label">软件开发</label>
+            <input v-model.number="jobModal.dev_quota" type="number" class="input stepper-input" min="0" max="20" step="1" />
+            <label class="label">综合/其他</label>
+            <input v-model.number="jobModal.other_quota" type="number" class="input stepper-input" min="0" max="20" step="1" />
+          </div>
+          <p class="muted small field-hint">
+            配额总计：{{ jobModal.ai_quota + jobModal.dev_quota + jobModal.other_quota }} 篇
+          </p>
+        </details>
 
         <div class="dlg-actions">
           <button type="button" class="btn btn-primary" @click="submitJobModal">
@@ -1272,6 +1375,25 @@ function runStatusClass(status: string) {
   padding: 1px 6px;
   border-radius: 6px;
   background: var(--surface);
+}
+.pool-config-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.pool-config-row .label {
+  margin: 0;
+  white-space: nowrap;
+}
+.pool-config-row .stepper-input {
+  width: 80px;
+}
+.src-priority-select {
+  width: 70px;
+  padding: 2px 4px;
+  font-size: 0.85em;
 }
 .subtle-top {
   margin-top: 12px;

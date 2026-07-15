@@ -11,6 +11,7 @@ from ddo_pulse_core.digest.builder import (
     digest_date_today,
     item_ids_from_rows,
 )
+from ddo_pulse_core.digest.pool_ranker import rank_with_pools
 from ddo_pulse_core.notifier.feishu import (
     FEISHU_SETTING_KEY,
     build_feishu_post_payload,
@@ -67,10 +68,14 @@ def build_and_push_digest(
     push: bool = True,
     force_push: bool = False,
     feishu_webhook_url: str | None = None,
+    pool_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Select up to top_n unpushed quality articles (score desc), push only that batch,
     and merge into the daily digest. Already-pushed articles are never sent again.
+
+    When pool_config is provided and pool_ranking_enabled is True, uses pool-based
+    ranking instead of simple score DESC.
     """
     digest_date = date or digest_date_today()
     stats: dict[str, Any] = {
@@ -85,12 +90,32 @@ def build_and_push_digest(
     }
 
     _ = force_push  # kept for API/CLI compat; per-article dedup is always enforced
-    rows = db.list_digest_candidates(
-        score_threshold=score_threshold,
-        limit=top_n,
-        source_ids=source_ids,
-        exclude_pushed=True,
-    )
+
+    # Choose ranking strategy
+    if pool_config and pool_config.get("pool_ranking_enabled"):
+        # Pool-based ranking: get all candidates, then rank with pools
+        all_candidates = db.list_all_digest_candidates(
+            score_threshold=score_threshold,
+            source_ids=source_ids,
+            exclude_pushed=True,
+        )
+        rows = rank_with_pools(
+            all_candidates,
+            ai_tags=pool_config.get("ai_category_tags", []),
+            dev_tags=pool_config.get("dev_category_tags", []),
+            ai_quota=pool_config.get("ai_quota", 6),
+            dev_quota=pool_config.get("dev_quota", 4),
+            other_quota=pool_config.get("other_quota", 2),
+            top_n=top_n,
+        )
+    else:
+        # Legacy ranking: score DESC with LIMIT
+        rows = db.list_digest_candidates(
+            score_threshold=score_threshold,
+            limit=top_n,
+            source_ids=source_ids,
+            exclude_pushed=True,
+        )
     stats["push_items"] = len(rows)
 
     if not push:

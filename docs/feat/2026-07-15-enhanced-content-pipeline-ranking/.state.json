@@ -1,0 +1,33 @@
+{
+  "runId": "feat-2026-07-15-enhanced-content-pipeline-ranking",
+  "createdAt": "2026-07-15T16:21:22Z",
+  "projectRoot": "/Users/djhhh/work_area/Ddo-Pulse",
+  "skillRoot": "/Users/djhhh/work_area/Ddo-Pulse/.claude/skills/Ddo-Code-Flow",
+  "userRequirement": "将这些内容作为需求来写一下吧，这个需求需要同步修改后端和前端，后端改分析流程，前端改定时任务支持这种需求的配置",
+  "workflowId": "standard",
+  "worktreePath": "/Users/djhhh/work_area/Ddo-Pulse-feat-2026-07-15-enhanced-content-pipeline-ranking",
+  "type": "feat",
+  "dateDescription": "2026-07-15-enhanced-content-pipeline-ranking",
+  "artifactDir": "/Users/djhhh/work_area/Ddo-Pulse-feat-2026-07-15-enhanced-content-pipeline-ranking/docs/feat/2026-07-15-enhanced-content-pipeline-ranking",
+  "currentStage": "done",
+  "stages": {
+    "context": { "status": "done" },
+    "requirement": { "status": "done" },
+    "spec": { "status": "done" },
+    "planning": { "status": "done" },
+    "test-plan": { "status": "done" },
+    "tasking": { "status": "done" },
+    "coding": { "status": "done" },
+    "verification": { "status": "done" },
+    "reporting": { "status": "done" },
+    "reflection": { "status": "done" }
+  },
+  "history": [
+    { "event": "created", "at": "2026-07-15T16:21:22Z" },
+    { "event": "coding_done", "at": "2026-07-15T17:00:00Z" },
+    { "event": "verification_done", "at": "2026-07-15T17:05:00Z" },
+    { "event": "reporting_done", "at": "2026-07-15T17:10:00Z" },
+    { "event": "reflection_done", "at": "2026-07-15T17:12:00Z" },
+    { "event": "pipeline_complete", "at": "2026-07-15T17:12:00Z" }
+  ]
+}

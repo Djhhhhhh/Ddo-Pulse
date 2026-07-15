@@ -36,6 +36,19 @@ def _merge_analyze_stats(acc: dict[str, Any], one: dict[str, Any]) -> None:
         acc["skip_reason"] = sr
 
 
+def _compute_composite_score(
+    result: Any,
+    relevance_weight: float,
+    novelty_weight: float,
+) -> float | None:
+    """Compute composite_score from relevance and novelty; fallback to score."""
+    r = getattr(result, "relevance", None)
+    n = getattr(result, "novelty", None)
+    if r is not None and n is not None:
+        return float(r) * relevance_weight + float(n) * novelty_weight
+    return float(result.score) if result.score is not None else None
+
+
 def analyze_pending_chunk(
     db: Database,
     rows: list[Any],
@@ -44,6 +57,8 @@ def analyze_pending_chunk(
     profile_id: int,
     keyword_prefilter: bool = False,
     interest_keywords: list[str] | None = None,
+    relevance_weight: float = 0.6,
+    novelty_weight: float = 0.4,
 ) -> dict[str, int | str | None]:
     """
     Analyze exactly the given raw_items rows (caller bounds count / sources).
@@ -85,6 +100,7 @@ def analyze_pending_chunk(
             continue
         try:
             result = analyzer.analyze(title, content)
+            composite_score = _compute_composite_score(result, relevance_weight, novelty_weight)
             db.insert_analyzed_item(
                 raw_item_id=raw_id,
                 profile_id=profile_id,
@@ -93,6 +109,9 @@ def analyze_pending_chunk(
                 categories_json=json.dumps(result.categories, ensure_ascii=False),
                 summary_zh=result.summary_zh,
                 reason=result.reason,
+                relevance=getattr(result, "relevance", None),
+                novelty=getattr(result, "novelty", None),
+                composite_score=composite_score,
             )
             stats["analyzed"] = int(stats["analyzed"]) + 1
         except Exception as exc:
@@ -113,6 +132,8 @@ def analyze_job_sources(
     interest_keywords: list[str] | None = None,
     source_analyze_cap: dict[int, int | None] | None = None,
     per_source_interest_keywords: dict[int, list[str]] | None = None,
+    relevance_weight: float = 0.6,
+    novelty_weight: float = 0.4,
 ) -> dict[str, int | str | None]:
     """
     Analyze pending items for enabled sources of one job.
@@ -120,6 +141,7 @@ def analyze_job_sources(
     *limit*: global max raw rows to dequeue this run (None = unlimited).
     *source_analyze_cap*: optional per-source_id max rows (None value = no extra cap).
     *per_source_interest_keywords*: optional per-source_id keyword overrides.
+    *relevance_weight* / *novelty_weight*: weights for composite_score calculation.
     """
     merged: dict[str, int | str | None] = {
         "pending": 0,
@@ -152,6 +174,8 @@ def analyze_job_sources(
             profile_id=profile_id,
             keyword_prefilter=keyword_prefilter,
             interest_keywords=src_kws,
+            relevance_weight=relevance_weight,
+            novelty_weight=novelty_weight,
         )
         _merge_analyze_stats(merged, astats)
         if remaining is not None:

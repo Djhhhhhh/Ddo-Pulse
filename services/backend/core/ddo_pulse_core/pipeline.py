@@ -15,6 +15,15 @@ from ddo_pulse_db.repository import Database
 
 logger = logging.getLogger(__name__)
 
+
+def _row_get(row, key, default=None):
+    """Get value from sqlite3.Row or dict safely."""
+    try:
+        v = row[key]
+        return v if v is not None else default
+    except (KeyError, IndexError):
+        return default
+
 RSS_TYPES = frozenset({"rss", "json_feed"})
 _fetchers = {
     "rss": RssFetcher(),
@@ -50,9 +59,19 @@ def fetch_source_preview(
     return {"count": len(items), "sample": sample}
 
 
+_PRIORITY_FETCH_LIMIT_DEFAULTS = {"P0": 5, "P1": 4, "P2": 3}
+_PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2}
+
+
 def _fetch_sources(
-    database: Database, sources: list, stats: dict[str, int | str | None]
+    database: Database,
+    sources: list,
+    stats: dict[str, int | str | None],
+    *,
+    fetch_limit_map: dict[int, int | None] | None = None,
 ) -> None:
+    """Fetch sources and upsert items. Applies per-source fetch_limit truncation."""
+    limits = fetch_limit_map or {}
     for row in sources:
         source_id = int(row["id"])
         type_ = row["type"]
@@ -62,6 +81,16 @@ def _fetch_sources(
             fetcher = _get_fetcher(type_)
             items = fetcher.fetch(source_id, url, config_json)
             stats["fetched_entries"] = int(stats["fetched_entries"]) + len(items)
+
+            # Apply fetch_limit truncation: sort by published_at DESC, keep top N
+            fetch_limit = limits.get(source_id)
+            if fetch_limit is not None and fetch_limit > 0 and len(items) > fetch_limit:
+                items = sorted(
+                    items,
+                    key=lambda x: x.published_at or "",
+                    reverse=True,
+                )[:fetch_limit]
+
             for item in items:
                 norm_url = normalize_url(item.url)
                 inserted = database.upsert_raw_item(
@@ -116,8 +145,8 @@ def _generate_local_reports(
     job = dict(job)
 
     # 获取精选文章
-    score_threshold = int(job.get("score_threshold", 7))
-    top_n = int(job.get("digest_top_n", 8))
+    score_threshold = int(_row_get(job, "score_threshold", 7))
+    top_n = int(_row_get(job, "digest_top_n", 8))
     logger.info(
         "Local report: fetching candidates (threshold=%d, top_n=%d, sources=%s)",
         score_threshold, top_n, source_ids,
@@ -137,7 +166,7 @@ def _generate_local_reports(
     logger.info("Local report: found %d articles", len(rows))
 
     # 构建 LLM profile
-    profile_id = job.get("llm_profile_id")
+    profile_id = _row_get(job, "llm_profile_id")
     if profile_id:
         profile_row = database.get_llm_profile(int(profile_id))
     else:
@@ -279,6 +308,8 @@ def run_pipeline_job(
         # Convert job_sources rows to source-like rows for compatibility
         sources = []
         focus_configs: dict[int, dict] = {}
+        priority_map: dict[int, str] = {}
+        fetch_limit_map: dict[int, int | None] = {}
         for js in job_sources:
             sid = int(js["source_id"])
             sources.append({
@@ -295,10 +326,27 @@ def run_pipeline_job(
                     focus_configs[sid] = fc
             except (json.JSONDecodeError, TypeError):
                 focus_configs[sid] = {}
+            # Read priority from job_sources column (new field)
+            prio = _row_get(js, "priority", "P1") or "P1"
+            priority_map[sid] = prio
+            # Read fetch_limit from job_sources column (new field)
+            fl = _row_get(js, "fetch_limit")
+            if fl is not None:
+                try:
+                    fl = int(fl)
+                    fetch_limit_map[sid] = fl if fl > 0 else None
+                except (TypeError, ValueError):
+                    fetch_limit_map[sid] = None
+            else:
+                # Use priority default
+                fetch_limit_map[sid] = _PRIORITY_FETCH_LIMIT_DEFAULTS.get(prio, 4)
+
+        # Sort sources by priority: P0 → P1 → P2
+        sources.sort(key=lambda s: _PRIORITY_ORDER.get(priority_map.get(int(s["id"]), "P1"), 1))
 
         source_ids = [int(s["id"]) for s in sources]
         stats["sources"] = len(sources)
-        _fetch_sources(database, sources, stats)
+        _fetch_sources(database, sources, stats, fetch_limit_map=fetch_limit_map)
 
         if analyze:
             # Per-source focus config overrides job-level config
@@ -325,6 +373,10 @@ def run_pipeline_job(
                     if isinstance(kw, list) and kw:
                         per_source_interest[sid] = [str(k) for k in kw]
 
+                # Read scoring weights from job config
+                rw = float(_row_get(job, "relevance_weight", 0.6) or 0.6)
+                nw = float(_row_get(job, "novelty_weight", 0.4) or 0.4)
+
                 astats = analyze_job_sources(
                     database,
                     sources,
@@ -335,6 +387,8 @@ def run_pipeline_job(
                     interest_keywords=interest,
                     source_analyze_cap=caps,
                     per_source_interest_keywords=per_source_interest if per_source_interest else None,
+                    relevance_weight=rw,
+                    novelty_weight=nw,
                 )
             except ValueError as exc:
                 astats = {
@@ -356,6 +410,18 @@ def run_pipeline_job(
         do_push = bool(job["push_digest"]) if push is None else push
 
         if not skip_digest:
+            # Build pool ranking config from job settings
+            pool_config = None
+            if int(_row_get(job, "pool_ranking_enabled", 0) or 0):
+                pool_config = {
+                    "pool_ranking_enabled": True,
+                    "ai_quota": int(_row_get(job, "ai_quota", 6) or 6),
+                    "dev_quota": int(_row_get(job, "dev_quota", 4) or 4),
+                    "other_quota": int(_row_get(job, "other_quota", 2) or 2),
+                    "ai_category_tags": json.loads(_row_get(job, "ai_category_tags", "[]") or "[]"),
+                    "dev_category_tags": json.loads(_row_get(job, "dev_category_tags", "[]") or "[]"),
+                }
+
             dstats = build_and_push_digest(
                 database,
                 job_id=job_id,
@@ -365,6 +431,7 @@ def run_pipeline_job(
                 push=do_push,
                 force_push=force_push,
                 feishu_webhook_url=str(job["feishu_webhook_url"] or "").strip(),
+                pool_config=pool_config,
             )
             stats["digest_items"] = dstats.get("digest_items", 0)
             stats["push_items"] = dstats.get("push_items", 0)
