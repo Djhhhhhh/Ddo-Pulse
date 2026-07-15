@@ -104,7 +104,7 @@ def _generate_local_reports(
     source_ids: list[int],
     stats: dict[str, Any],
 ) -> None:
-    """生成本地报告（MD、HTML、截图）"""
+    """生成本地报告（仅 MD）"""
     try:
         from agents.reporter import ReporterAgent
         from tools.publishers.report_dir import create_report_dir, generate_timestamp
@@ -179,9 +179,7 @@ def _generate_local_reports(
     stats["local_report_timestamp"] = result.get("timestamp", timestamp)
     stats["local_report_generated"] = True
     stats["local_report_md"] = result.get("md_path")
-    stats["local_report_html"] = result.get("html_path")
-    stats["local_report_screenshots"] = len(result.get("screenshots", []))
-    logger.info("Local reports generated: %s", result)
+    logger.info("Local report generated: %s", result)
 
 
 def _pipeline_terminal(run_id: int, database: Database, stats: dict[str, Any]) -> None:

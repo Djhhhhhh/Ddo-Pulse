@@ -38,7 +38,6 @@ def generate_digest_md(
     for idx, row in enumerate(articles, 1):
         title = row.get("title") or row.get("url", "")
         url = row.get("url", "")
-        score = row.get("score", 0)
         categories = row.get("categories", [])
         if isinstance(categories, str):
             categories = _parse_categories(categories)
@@ -50,7 +49,7 @@ def generate_digest_md(
         # 标题与元信息
         lines.append(f"## {idx}. [{title}]({url})")
         lines.append("")
-        lines.append(f"📌 **{score} 分** · {cats}")
+        lines.append(f"Tags：{cats}")
         lines.append("")
 
         # 摘要
@@ -86,9 +85,35 @@ def generate_digest_md(
                 lines.append(f"💡 {insights}")
                 lines.append("")
 
+        # 阅读重点
+        if deep_analysis:
+            focus = _infer_reading_focus(deep_analysis, categories)
+            if focus:
+                lines.append(f"**🎯 着重看：**{focus}")
+                lines.append("")
+
         if idx < len(articles):
             lines.append("---")
             lines.append("")
 
     output_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     return output_path
+
+
+def _infer_reading_focus(deep_analysis: dict, categories: List[str]) -> str:
+    """从深度解读结果推断阅读重点"""
+    key_points = deep_analysis.get("key_points", [])
+    insights = deep_analysis.get("insights", "")
+
+    parts = []
+
+    # 从要点中提取前两个作为阅读重点
+    if key_points:
+        parts.append("；".join(key_points[:2]))
+
+    # 从分类补充
+    if categories:
+        cat_str = "、".join(categories[:2])
+        parts.append(f"关注 {cat_str} 相关实践")
+
+    return "。".join(parts) if parts else ""

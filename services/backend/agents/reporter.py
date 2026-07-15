@@ -30,7 +30,7 @@ class ReporterAgent(Agent):
 
     def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        生成报告
+        生成报告（仅 MD 格式）
 
         context:
             - articles: 文章列表（含分析结果）
@@ -40,12 +40,9 @@ class ReporterAgent(Agent):
         return:
             - report_dir: 报告目录路径
             - md_path: MD 文件路径
-            - html_path: HTML 文件路径
-            - screenshots: 截图路径列表
         """
         articles = context.get("articles", [])
         date = context.get("date")
-        job_config = context.get("job_config", {})
         timestamp = context.get("timestamp") or generate_timestamp()
 
         # 创建报告目录
@@ -57,30 +54,11 @@ class ReporterAgent(Agent):
         # 生成 MD 报告
         md_path = self._generate_md(analyzed_articles, date or timestamp, report_dir)
 
-        # 生成 HTML 报告
-        html_path = self._generate_html(analyzed_articles, date or timestamp, report_dir)
-
-        # 生成截图
-        screenshots = self._generate_screenshots(html_path, report_dir)
-
-        # 生成封面图（从 HTML 截图生成）
-        covers = self._generate_covers(html_path, report_dir)
-
-        # 拼合用户提供的封面图（可选）
-        cover_path = self._generate_cover(context, report_dir)
-
-        result = {
+        return {
             "report_dir": str(report_dir),
             "md_path": str(md_path),
-            "html_path": str(html_path),
-            "screenshots": [str(s) for s in screenshots],
-            "cover_main": str(covers.get("main", "")),
-            "cover_sub": str(covers.get("sub", "")),
             "timestamp": timestamp,
         }
-        if cover_path:
-            result["cover_path"] = str(cover_path)
-        return result
 
     def _deep_analyze_batch(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """批量深度解读"""
@@ -135,42 +113,3 @@ class ReporterAgent(Agent):
         from tools.publishers.markdown import generate_digest_md
         md_path = report_dir / "digest.md"
         return generate_digest_md(date, articles, md_path)
-
-    def _generate_html(
-        self,
-        articles: List[Dict[str, Any]],
-        date: str,
-        report_dir: Path
-    ) -> Path:
-        """生成 HTML 报告"""
-        from tools.publishers.html_report import generate_digest_html
-        html_path = report_dir / "digest.html"
-        return generate_digest_html(date, articles, html_path)
-
-    def _generate_screenshots(self, html_path: Path, report_dir: Path) -> List[Path]:
-        """生成截图"""
-        from tools.publishers.screenshot import generate_screenshots
-        images_dir = report_dir / "images"
-        return generate_screenshots(html_path, images_dir)
-
-    def _generate_covers(self, html_path: Path, report_dir: Path) -> dict:
-        """从 HTML 截图生成封面图"""
-        from tools.publishers.screenshot import generate_covers
-        images_dir = report_dir / "images"
-        return generate_covers(html_path, images_dir)
-
-    def _generate_cover(self, context: Dict[str, Any], report_dir: Path) -> Path | None:
-        """拼合用户提供的微信公众号封面图（大封面+小封面）"""
-        large_cover = context.get("large_cover")
-        small_cover = context.get("small_cover")
-        if not large_cover or not small_cover:
-            logger.debug("Cover images not provided, skipping cover merge")
-            return None
-
-        try:
-            from tools.publishers.cover_merger import merge_cover_images
-            cover_path = report_dir / "cover.png"
-            return merge_cover_images(large_cover, small_cover, cover_path)
-        except Exception as exc:
-            logger.warning("Cover merge failed: %s", exc)
-            return None
